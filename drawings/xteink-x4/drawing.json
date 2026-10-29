@@ -1,0 +1,24 @@
+{
+  "dependencies": "node_modules",
+  "modelScripts": ["model.js"],
+  "drawings": [{
+    "id": "xteink-x4",
+    "title": "Xteink X4",
+    "description": "Xteink X4 pocket e-reader. Outer size from published specs (114 × 69 × 5.9 mm); face layout estimated from product photos; internal layout (board, battery, magnet ring placement) is illustrative.",
+    "concept": true,
+    "parts": [
+      {"id": "housing", "name": "Rear housing"},
+      {"id": "magnets", "name": "Magnet ring"},
+      {"id": "battery", "name": "Battery, 650 mAh"},
+      {"id": "board", "name": "Logic board"},
+      {"id": "chip", "name": "ESP32 processor"},
+      {"id": "usb", "name": "USB-C port"},
+      {"id": "card", "name": "microSD slot"},
+      {"id": "display", "name": "E-paper display"},
+      {"id": "keys", "name": "Page buttons"},
+      {"id": "side", "name": "Power and side rocker"},
+      {"id": "frame", "name": "Front frame"}
+    ],
+    "parameters": []
+  }]
+}

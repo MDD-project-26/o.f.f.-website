@@ -1,0 +1,27 @@
+{
+  "dependencies": "../../node_modules",
+  "modelScripts": ["model.js"],
+  "drawings": [{
+    "id": "device",
+    "title": "o.f.f. device",
+    "description": "Illustrative concept of the o.f.f. device: rear housing, logic board with processor and USB-C port, display and front cover with a 10 mm bezel. Dimensions are invented.",
+    "concept": true,
+    "parts": [
+      {"id": "housing", "name": "Rear housing"},
+      {"id": "board", "name": "Logic board"},
+      {"id": "chip", "name": "Processor"},
+      {"id": "usb", "name": "USB-C port"},
+      {"id": "display", "name": "Display"},
+      {"id": "cover", "name": "Front cover"}
+    ],
+    "parameters": [{
+      "key": "bezel",
+      "label": "Bezel width",
+      "min": 6,
+      "max": 14,
+      "default": 10,
+      "step": 1,
+      "unit": "mm"
+    }]
+  }]
+}

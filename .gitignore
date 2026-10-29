@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.dev.vars*
+.env*
+.DS_Store
+drawings/*/proof-*/
+drawings/*/check*/
+
+# Commercial fonts (licensed locally, not redistributable)
+public/fonts/

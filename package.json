@@ -1,0 +1,25 @@
+{
+  "name": "off-website",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24.22.2 <25"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "pnpm build && wrangler dev",
+    "deploy": "pnpm build && wrangler deploy",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^14.4.2",
+    "@paper-design/shaders": "^0.0.82",
+    "astro": "^7.4.2"
+  },
+  "devDependencies": {
+    "wrangler": "^4.154.0"
+  }
+}
