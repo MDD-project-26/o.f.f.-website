@@ -746,8 +746,8 @@ const handwriting = (svg: string, word: string) =>
       if (stage && pill) {
         const darkModule = stage.parentElement as HTMLElement & { scrollYForRule?: (ruleTop: number) => number };
 
-        // Pin: the stage is held in the viewport while the module scrolls past by a scroll-driven animation that moves
-        // it down 1:1 with the scroll (see .dark-stage), not position: sticky. iOS Safari treats a pinned element
+        // Pin: the stage (on phones only the pill) is held in the viewport while the module scrolls past by a
+        // scroll-driven animation that moves it down 1:1 with the scroll (see .dark-stage), not position: sticky. iOS Safari treats a pinned element
         // reaching the screen's edge as a toolbar and fills a solid band behind its floating bottom bar instead of
         // drawing the page on under it. The animation's range needs the module's place on the page, kept up to date
         // here. Browsers without scroll-driven animations keep sticky.
@@ -764,10 +764,15 @@ const handwriting = (svg: string, word: string) =>
         const COVER_MARGIN = 1.056;
         const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-        // Smallest scale at which the stadium (semicircle ends on its short side) contains the box's corners
+        // On phones the gallery isn't scroll-driven: its slides are stacked and scroll past with the page, over the
+        // pinned pill, which still grows in and squares off, and shrinks back out
+        const isPhone = window.matchMedia("(max-width: 720px)");
+
+        // Smallest scale at which the stadium (semicircle ends on its short side) contains the box's corners. The
+        // pill is the viewport's size (100lvh tall), on phones too, where the stage is the whole module.
         const coverScale = () => {
-          const a = Math.max(stage.clientWidth, stage.clientHeight) / 2;
-          const b = Math.min(stage.clientWidth, stage.clientHeight) / 2;
+          const a = Math.max(pill.offsetWidth, pill.offsetHeight) / 2;
+          const b = Math.min(pill.offsetWidth, pill.offsetHeight) / 2;
           const covers = (s: number) => {
             const straight = (a - b) * s; // half-length of the straight part
             return a <= straight || Math.hypot(a - straight, b) <= b * s;
@@ -787,37 +792,39 @@ const handwriting = (svg: string, word: string) =>
         // from when its bottom reaches the viewport's bottom until it leaves at the top.
         let progressIn = 0;
         let progressOut = 0;
+        // How far the pill reaches past the stage's top and bottom. The gallery shows that far out too: on iOS the
+        // page is drawn on under the status bar and the floating bottom bar, past the stage, and a gallery cut off
+        // at the stage's edges showed there as hard edges across the photos.
+        let bleed = 0;
         const render = () => {
           const p = reduceMotion.matches ? 1 : progressIn * (1 - progressOut);
           const scale = 1 + (cover - 1) * p;
-
-          // The header turns dark while the pill's edge is past its middle, on the way in and out alike. The pill
-          // is scaled around the stage's centre, so its edges come from the stage's box without measuring it.
-          if (header) {
-            const box = stage.getBoundingClientRect();
-            const headerBox = header.getBoundingClientRect();
-            const middle = headerBox.top + headerBox.height / 2;
-            const centre = box.top + box.height / 2;
-            const half = (box.height / 2) * scale;
-            overPill = centre - half <= middle && middle <= centre + half;
-            updateHeader();
-          }
+          bleed = (pill.offsetHeight * (scale - 1)) / 2;
 
           pill.style.transform = `scale(${scale})`;
           // The corners square off on the same progress: from the full stadium (half the short side) to none
-          pill.style.borderRadius = `${(Math.min(stage.clientWidth, stage.clientHeight) / 2) * (1 - p)}px`;
+          pill.style.borderRadius = `${(Math.min(pill.offsetWidth, pill.offsetHeight) / 2) * (1 - p)}px`;
+
+          // The header turns dark while the pill's edge is past its middle, on the way in and out alike
+          if (header) {
+            const box = pill.getBoundingClientRect();
+            const headerBox = header.getBoundingClientRect();
+            const middle = headerBox.top + headerBox.height / 2;
+            overPill = box.top <= middle && middle <= box.bottom;
+            updateHeader();
+          }
         };
         addEventListener("resize", () => {
           cover = coverScale();
           updateProgress();
         });
-        // In: the module's top from the stage's height (the bottom of the screen) to 0; out: its bottom from there
-        // to 0. Measured against the stage (100lvh), not the window, whose height on iOS stops above the floating
+        // In: the module's top from the pill's height (the bottom of the screen) to 0; out: its bottom from there
+        // to 0. Measured against the pill (100lvh), not the window, whose height on iOS stops above the floating
         // bottom bar, so both line up exactly with the pin.
         const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
         const updateProgress = () => {
           const box = darkModule.getBoundingClientRect();
-          const height = stage.clientHeight;
+          const height = pill.offsetHeight;
           progressIn = clamp01((height - box.top) / height);
           progressOut = clamp01((height - box.bottom) / height);
           render();
@@ -899,6 +906,8 @@ const handwriting = (svg: string, word: string) =>
         // viewport. The squeeze only ever increases, so it's inverted by bisection to find the gallery's progress.
         if (rules.length) {
           darkModule.scrollYForRule = (ruleTop) => {
+            // Phones: the rules sit still in the module
+            if (isPhone.matches) return rules[0].getBoundingClientRect().top + scrollY - ruleTop;
             const { squeeze, start, end } = geometry();
             let low = end;
             let high = start;
@@ -936,14 +945,17 @@ const handwriting = (svg: string, word: string) =>
           rules.forEach((rule, index) => {
             const y = boundaries[index];
             rule.style.transform = `translateY(${y}px)`;
-            rule.style.visibility = y > 0 && y < height ? "visible" : "hidden";
+            rule.style.visibility = y > -bleed && y < height + bleed ? "visible" : "hidden";
           });
           slides.forEach((item, index) => {
             const { slide, media, fill } = item;
             const top = boundaries[index];
             const bottom = boundaries[index + 1];
             // Masked to its section, so the rules cut through the captions as they pass
-            slide.style.clipPath = `inset(${Math.min(Math.max(top, 0), height)}px 0 ${Math.min(Math.max(height - bottom, 0), height)}px 0)`;
+            // Out to the pill's reach past the stage's edges (bleed), where negative insets extend the clip
+            const clipTop = Math.min(Math.max(top, -bleed), height + bleed);
+            const clipBottom = Math.min(Math.max(height - bottom, -bleed), height + bleed);
+            slide.style.clipPath = `inset(${clipTop}px 0 ${clipBottom}px 0)`;
             // The frame fills its section, less the pad
             item.scale = (bottom - top - 2 * SECTION_PAD) / frameHeight;
             item.shift = (top + bottom) / 2 - frameCentres[index];
@@ -954,11 +966,56 @@ const handwriting = (svg: string, word: string) =>
             if (!reduceMotion.matches) fill.style.transform = `translateY(${-travel * PARALLAX}%) scale(${ZOOM})`;
           });
         };
+        // Phones: everything the scroll would move is put back, each rule goes to the top of its slide, and the
+        // module takes the stacked gallery's height (see .dark-module), so the pill stays pinned while it scrolls past
+        const gallery = stage.querySelector<HTMLElement>(".dark-gallery")!;
+        const layoutStatic = () => {
+          slides.forEach((item) => {
+            item.slide.style.clipPath = "none";
+            item.captions.forEach((caption) => {
+              caption.style.filter = "none";
+              caption.style.transform = "none";
+            });
+            item.media.style.transform = "none";
+            item.scale = 1;
+            item.shift = 0;
+          });
+          rules.forEach((rule, index) => {
+            rule.style.transform = `translateY(${slides[index]?.slide.offsetTop ?? 0}px)`;
+            rule.style.visibility = "visible";
+          });
+          darkModule.style.setProperty("--gallery-height", `${gallery.offsetHeight}px`);
+        };
+        new ResizeObserver(() => {
+          if (isPhone.matches) layoutStatic();
+        }).observe(gallery);
+        isPhone.addEventListener("change", () => {
+          if (isPhone.matches) layoutStatic();
+          else darkModule.style.removeProperty("--gallery-height");
+          cover = coverScale();
+          updateProgress();
+          updateGallery();
+        });
+
+        // Phones: the photos drift inside their frames as on larger screens, from where each frame is on the screen
+        const renderParallax = () => {
+          const height = pill.offsetHeight;
+          slides.forEach(({ media, fill }) => {
+            const box = media.getBoundingClientRect();
+            // -1 as the frame enters at the bottom, 1 as it leaves at the top
+            const travel = Math.min(Math.max(1 - (2 * box.bottom) / (height + box.height), -1), 1);
+            if (reduceMotion.matches) fill.style.removeProperty("transform");
+            else fill.style.transform = `translateY(${-travel * PARALLAX}%) scale(${ZOOM})`;
+          });
+        };
+
         // Gallery: over exactly the pinned range, the same one scrollYForRule inverts
         const updateGallery = () => {
+          if (isPhone.matches) return renderParallax();
           const travel = darkModule.offsetHeight - stage.clientHeight;
           renderGallery(travel > 0 ? clamp01(-darkModule.getBoundingClientRect().top / travel) : 0);
         };
+        if (isPhone.matches) layoutStatic();
         scroll(() => {
           updateProgress();
           updateGallery();
@@ -1630,12 +1687,13 @@ const handwriting = (svg: string, word: string) =>
     animation-range-end: calc(var(--pin-start) + var(--pin-travel));
   }
 
+  /* The translate property, so on phones, where the pill itself is pinned, its scale (transform) still applies */
   @keyframes dark-stage-pin {
     from {
-      transform: translateY(0);
+      translate: 0 0;
     }
     to {
-      transform: translateY(var(--pin-travel));
+      translate: 0 var(--pin-travel);
     }
   }
 
@@ -1657,8 +1715,9 @@ const handwriting = (svg: string, word: string) =>
     padding: 0;
     list-style: none;
     color: #f5f5f5;
-    /* The frames move past the stage's edges while they're off screen */
-    overflow: clip;
+    /* The frames move past the stage's sides while they're off screen. Above and below they can show past the stage
+       as far as the pill reaches (bleed in the script), which clips each slide itself. */
+    overflow-x: clip;
   }
 
   .dark-slide {
@@ -2412,10 +2471,10 @@ const handwriting = (svg: string, word: string) =>
   }
 
   @media (max-width: 720px) {
-    /* Captions above and below the frame */
+    /* Captions above and below the frame, each row as tall as its content */
     .dark-slide {
       grid-template-columns: 1fr;
-      grid-template-rows: 1fr auto 1fr;
+      grid-template-rows: auto;
       justify-items: center;
       gap: 24px;
     }
@@ -2426,14 +2485,67 @@ const handwriting = (svg: string, word: string) =>
       text-align: center;
     }
 
+    /* The titles' \n breaks are for the wide layout; here they wrap on their own */
+    .dark-slide-title > span {
+      white-space: normal;
+    }
+
     .dark-slide-text-right {
       align-self: start;
       justify-self: center;
       text-align: center;
     }
 
+    /* No scroll-driven gallery: the slides are stacked and scroll past with the page, over the pill, which alone
+       is pinned (and still grows in and shrinks out). The module is as tall as the stacked gallery (measured by the
+       script), and the pill stays pinned while the rest of it scrolls past. */
     .dark-module {
       --frame-height: min(48svh, 520px);
+      --pin-travel: max(0px, calc(var(--gallery-height, 100lvh) - 100lvh));
+      height: max(100vh, var(--gallery-height, 100vh));
+      height: max(100lvh, var(--gallery-height, 100lvh));
+    }
+
+    .dark-stage,
+    .dark-module.is-scroll-pinned .dark-stage {
+      position: absolute;
+      inset: 0;
+      height: auto;
+      animation: none;
+    }
+
+    /* Sticky without scroll-driven animations, pinned like the stage on larger screens with them */
+    .dark-pill {
+      position: sticky;
+      inset: 0 auto auto;
+      width: 100%;
+      height: 100vh;
+      height: 100lvh;
+    }
+
+    .dark-module.is-scroll-pinned .dark-pill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      animation: dark-stage-pin linear both;
+      animation-timeline: scroll(root block);
+      animation-range-start: var(--pin-start);
+      animation-range-end: calc(var(--pin-start) + var(--pin-travel));
+    }
+
+    /* 96px everywhere: from the top of the dark area to the first rule, from each rule to its slide's content and
+       from the content to the next rule, and from the last slide's content to the end (the slides' padding) */
+    .dark-gallery {
+      inset: 0 0 auto;
+      padding-top: 96px;
+    }
+
+    .dark-slide,
+    html.js .dark-slide {
+      position: relative;
+      inset: auto;
+      clip-path: none;
+      padding: 96px 16px;
     }
 
     .nav-links {
