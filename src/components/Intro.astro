@@ -7,7 +7,8 @@
 
 <!-- Plays when the page opens at the top: skipped on a reload or back/forward visit that the browser will put
      back below the top (it restores the scroll only after this runs, so the position saved on leaving is used),
-     and on links to a section (#problem). ?speed=0.5 slows it down; ?nointro skips it. Runs before first paint,
+     on links to a section (#problem), and when arriving from another page of the site (the demo, the blog).
+     ?speed=0.5 slows it down; ?nointro skips it. Runs before first paint,
      so the page never flashes before the overlay. -->
 <script is:inline>
   (() => {
@@ -25,8 +26,39 @@
     const navigation = performance.getEntriesByType("navigation")[0];
     const restoresScroll = navigation?.type === "reload" || navigation?.type === "back_forward";
     const opensAtTop = !location.hash && !(restoresScroll && savedY > 0);
-    if (opensAtTop && !new URLSearchParams(location.search).has("nointro")) {
+    // Same-origin links send their full URL as the referrer, so this catches every other page of the site
+    let fromSitePage = false;
+    try {
+      const from = new URL(document.referrer);
+      fromSitePage = from.origin === location.origin && from.pathname !== location.pathname;
+    } catch {}
+    if (opensAtTop && !fromSitePage && !new URLSearchParams(location.search).has("nointro")) {
       document.documentElement.classList.add("has-intro");
+      lockScroll();
+    }
+
+    // Holds the page at the top while the intro plays, without hiding the scrollbar (overflow: hidden would, and
+    // the page would shift sideways when it came back). Lets go when the intro removes has-intro.
+    function lockScroll() {
+      const root = document.documentElement;
+      const SCROLL_KEYS = new Set([" ", "PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown"]);
+      const block = (event) => event.preventDefault();
+      const blockKeys = (event) => SCROLL_KEYS.has(event.key) && event.preventDefault();
+      // Dragging the scrollbar can't be prevented, so that is undone instead
+      const holdTop = () => scrollY !== 0 && scrollTo(0, 0);
+      addEventListener("wheel", block, { passive: false });
+      addEventListener("touchmove", block, { passive: false });
+      addEventListener("keydown", blockKeys);
+      addEventListener("scroll", holdTop);
+      const observer = new MutationObserver(() => {
+        if (root.classList.contains("has-intro")) return;
+        observer.disconnect();
+        removeEventListener("wheel", block);
+        removeEventListener("touchmove", block);
+        removeEventListener("keydown", blockKeys);
+        removeEventListener("scroll", holdTop);
+      });
+      observer.observe(root, { attributes: true, attributeFilter: ["class"] });
     }
   })();
   // The title starts with its first line in the second's place, with or without the intro
@@ -132,9 +164,16 @@
       document.documentElement.classList.remove("title-push");
     };
     if (!firstLine || !words.length) return done();
+    // The first line starts down by the second line's height, so its bottom sits on the second's. Not its own
+    // height: on narrow screens the first line wraps and would land on the copy below. Layout offsets ignore the
+    // transforms; the second line's bottom padding only makes room for its clip.
+    const reveal = firstLine.nextElementSibling as HTMLElement | null;
+    const pushFrom = reveal
+      ? reveal.offsetTop + reveal.offsetHeight - parseFloat(getComputedStyle(reveal).paddingBottom) - (firstLine.offsetTop + firstLine.offsetHeight)
+      : firstLine.offsetHeight;
     titlePush = animate(
       [
-        [firstLine, { y: ["100%", "0%"] }, { ...pushTween, at: delay }],
+        [firstLine, { y: [pushFrom, 0] }, { ...pushTween, at: delay }],
         [words, { y: [WORD_HIDDEN, "0%"] }, { ...pushTween, at: delay, delay: stagger(WORD_STAGGER) }],
       ],
       { reduceMotion: false },
@@ -157,6 +196,10 @@
     const maskPassed = intro.querySelector<SVGRectElement>(".intro-mask-passed")!;
     const heroShader = document.querySelector<HTMLElement>(".hero-shader");
     const header = document.querySelector<HTMLElement>(".site-header");
+    // The header's contents slide in, not the header: it stays at the top of the screen, above the overlay, for the
+    // whole intro, because iOS Safari colours the band behind its status bar from a fixed bar it finds there. With
+    // the header gone, Safari showed the black overlay under the status bar instead, and turned white late.
+    const headerParts = header ? ([...header.children] as HTMLElement[]) : [];
     const heroText = document.querySelector<HTMLElement>(".hero-intro");
 
     // Overall pace: every duration below is stretched by this (1.4 = 40% slower), keeping their proportions
@@ -239,9 +282,11 @@
       if (!heroShader || !hero?.width || !box.height) return null;
       const from = { x: box.left + box.width * LETTERS_CENTRE.x, y: box.top + box.height * LETTERS_CENTRE.y };
       const to = { x: hero.left + hero.width / 2, y: hero.top + hero.height / 2 };
-      // Scale at which the pill's opening contains the whole viewport, from either end of the move
+      // Scale at which the pill's opening contains the whole viewport, from either end of the move. The height is
+      // the overlay's first screen (100lvh), which on iOS reaches under the toolbar, past innerHeight.
+      const screenHeight = Math.max(innerHeight, intro.getBoundingClientRect().height / 2);
       const farthestCorner = Math.max(
-        ...[from, to].map(({ x, y }) => Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))),
+        ...[from, to].map(({ x, y }) => Math.hypot(Math.max(x, innerWidth - x), Math.max(y, screenHeight - y))),
       );
       return {
         dx: to.x - from.x,
@@ -301,7 +346,7 @@
           [scaleIn, [0, 1], { duration: SCALE_IN, ease: introEase, at: 0 }],
           [knobX, [KNOB_TRAVEL, 0], { duration: SWITCH_DURATION, ease: cubicInOut, at: SWITCH_AT }],
           [growP, [0, 1], { duration: GROW_DURATION, ease: introEase, at: growAt }],
-          ...(header ? [[header, { y: [slideFrom.header, 0] }, { ...slideSpring, at: growAt + SLIDE_STAGGER.header }] as const] : []),
+          ...(headerParts.length ? [[headerParts, { y: [slideFrom.header, 0] }, { ...slideSpring, at: growAt + SLIDE_STAGGER.header }] as const] : []),
           ...(heroText ? [[heroText, { y: [slideFrom.text, 0] }, { ...slideSpring, at: growAt + SLIDE_STAGGER.text }] as const] : []),
         ],
         { reduceMotion: false },
@@ -311,7 +356,7 @@
 
       introTimeline.then(() => {
         unlock();
-        header?.style.removeProperty("transform");
+        headerParts.forEach((part) => part.style.removeProperty("transform"));
         heroText?.style.removeProperty("transform");
       });
 
@@ -349,27 +394,54 @@
     display: none;
   }
 
+  /* Absolute, not fixed: Safari 26 tints its toolbar from fixed elements at the top of the viewport, so a fixed
+     black overlay turned the toolbar black, and Safari only noticed it was gone a few seconds after the intro.
+     The page is held at the top while this shows, so it covers the viewport just the same. Clipped, so the
+     growing ring doesn't make the page scrollable. */
   :global(html.has-intro) .intro {
-    position: fixed;
-    inset: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* Two screens tall, with the mark centred in the first: iOS Safari draws the page on under its floating
+       toolbar, past even 100lvh, and a one-screen overlay let the hero title show below it */
+    height: 200vh;
+    height: 200lvh;
+    overflow: clip;
     z-index: 100;
     display: grid;
+    grid-template-rows: 100vh;
+    grid-template-rows: 100lvh;
+    align-content: start;
     place-items: center;
     background: var(--intro-ground);
   }
 
-  /* Until the title push, the first line sits in the second's place and the second's words wait below its clip */
+  /* Until the title push, the first line sits in the second's place and the second's words wait below its clip.
+     One line down (the title's line-height is 1), not 100%: on narrow screens the first line wraps to two, and its
+     own height would put it on the copy below. The script measures the exact distance when the push starts. */
   :global(html.title-push .hero-title-line:not(.hero-title-reveal)) {
-    transform: translateY(100%);
+    transform: translateY(1em);
   }
 
   :global(html.title-push .hero-title-word) {
     transform: translateY(120%);
   }
 
-  /* Keeps the page from scrolling under the overlay */
+  /* The page is held at the top by the script in the head (lockScroll), not overflow: hidden, so the scrollbar
+     stays put. This stops the scroll from chaining or bouncing on touch screens. */
   :global(html.has-intro) {
-    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /* The header stays put above the overlay (see headerParts in the script), an empty see-through box while its
+     contents wait above the screen; the script slides them in from there */
+  :global(html.has-intro .site-header) {
+    z-index: 101;
+  }
+
+  :global(html.has-intro .site-header > *) {
+    transform: translateY(-200px);
   }
 
   .intro-mark {

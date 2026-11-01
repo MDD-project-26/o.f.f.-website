@@ -86,7 +86,9 @@ const slides = [
 </DemoLayout>
 
 <script>
-  // Gallery: the arrows scroll the track one slide at a time; each is dimmed at its end of the track.
+  // Gallery: the arrows scroll the track one slide at a time; each is dimmed at its end of the track. A sideways
+  // two-finger swipe on a trackpad scrolls it freely, and on letting go it snaps a slide to the column's left
+  // edge (scroll snapping, in the CSS). With a mouse, the slides can also be grabbed and dragged.
   document.querySelectorAll<HTMLElement>("[data-gallery]").forEach((gallery) => {
     const track = gallery.querySelector<HTMLElement>("[data-gallery-track]")!;
     const prev = gallery.querySelector<HTMLButtonElement>("[data-gallery-prev]")!;
@@ -100,10 +102,17 @@ const slides = [
       next.disabled = track.scrollLeft >= max - 1;
     };
 
+    // The scroll position that puts each slide at the column's left edge (less the track's left padding, which
+    // lines the first slide up with the column)
+    const slideStarts = () => {
+      const inset = parseFloat(getComputedStyle(track).paddingLeft) || 0;
+      return slides.map((slide) => slide.offsetLeft - track.offsetLeft - inset);
+    };
+
     const go = (direction: 1 | -1) => {
       const left = track.scrollLeft;
       // The first slide start past (or before) the current position
-      const starts = slides.map((slide) => slide.offsetLeft - track.offsetLeft);
+      const starts = slideStarts();
       const target =
         direction === 1 ? starts.find((x) => x > left + 1) : [...starts].reverse().find((x) => x < left - 1);
       track.scrollTo({ left: target ?? (direction === 1 ? track.scrollWidth : 0), behavior: reduceMotion.matches ? "auto" : "smooth" });
@@ -111,6 +120,62 @@ const slides = [
 
     prev.addEventListener("click", () => go(-1));
     next.addEventListener("click", () => go(1));
+
+    // Grab and drag with the mouse (touch already swipes natively). Snapping is paused while dragging so the
+    // track follows the mouse exactly. On release it glides to the slide nearest to where the throw was heading
+    // (its speed over the last moments, carried on for a short while), then snapping is switched back on.
+    let drag: { x: number; scroll: number; samples: { t: number; scroll: number }[] } | null = null;
+
+    track.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== "mouse" || event.button !== 0) return;
+      event.preventDefault(); // no text selection or native image drag
+      track.setPointerCapture(event.pointerId);
+      drag = { x: event.clientX, scroll: track.scrollLeft, samples: [{ t: event.timeStamp, scroll: track.scrollLeft }] };
+      track.classList.add("is-dragging", "is-settling");
+    });
+
+    track.addEventListener("pointermove", (event) => {
+      if (!drag) return;
+      track.scrollLeft = drag.scroll - (event.clientX - drag.x);
+      drag.samples.push({ t: event.timeStamp, scroll: track.scrollLeft });
+      // Only the last 100ms count towards the throw
+      while (drag.samples.length > 2 && event.timeStamp - drag.samples[0].t > 100) drag.samples.shift();
+    });
+
+    const release = (event: PointerEvent) => {
+      if (!drag) return;
+      const { samples } = drag;
+      drag = null;
+      track.classList.remove("is-dragging");
+
+      const first = samples[0];
+      const last = samples[samples.length - 1];
+      const elapsed = event.timeStamp - first.t;
+      const velocity = elapsed > 0 ? (last.scroll - first.scroll) / elapsed : 0; // px per ms
+      const heading = track.scrollLeft + velocity * 200;
+
+      const max = track.scrollWidth - track.clientWidth;
+      const target = slideStarts()
+        .map((start) => Math.min(Math.max(start, 0), max))
+        .reduce((best, start) => (Math.abs(start - heading) < Math.abs(best - heading) ? start : best));
+
+      // Snapping comes back once the glide is over (scrollend, or a timeout where it isn't supported)
+      let restored = false;
+      const restoreSnap = () => {
+        // (not if the slides were grabbed again meanwhile: that drag restores it when it ends)
+        if (restored || drag) return;
+        restored = true;
+        track.classList.remove("is-settling");
+      };
+      track.addEventListener("scrollend", restoreSnap, { once: true });
+      window.setTimeout(restoreSnap, 800);
+      track.scrollTo({ left: target, behavior: reduceMotion.matches ? "auto" : "smooth" });
+      if (Math.abs(track.scrollLeft - target) < 1) restoreSnap();
+    };
+
+    track.addEventListener("pointerup", release);
+    track.addEventListener("pointercancel", release);
+    track.addEventListener("dragstart", (event) => event.preventDefault());
     track.addEventListener("scroll", update, { passive: true });
     // Also re-checks once the track becomes visible (it measures as empty while the password gate shows)
     new ResizeObserver(update).observe(track);
@@ -207,11 +272,15 @@ const slides = [
   }
 
   .gallery-track {
+    /* From the column's edge out to the window's: slides scrolled past the column stay visible on both sides */
+    --bleed: calc((100vw - min(488px, 100vw - 32px)) / 2);
     display: flex;
     gap: 8px;
-    /* Out to the window's right edge */
-    margin: 0 calc((100% - 100vw) / 2) 0 0;
-    padding: 0;
+    /* Out to both window edges; the padding keeps the first slide lined up with the column, and the scroll
+       padding snaps every slide there */
+    margin: 0 calc(var(--bleed) * -1);
+    padding: 0 0 0 var(--bleed);
+    scroll-padding-left: var(--bleed);
     list-style: none;
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -221,6 +290,23 @@ const slides = [
 
   .gallery-track::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Grab the slides with the mouse (see the script); snapping waits while dragging and gliding to a slide */
+  @media (pointer: fine) {
+    .gallery-slide {
+      cursor: grab;
+    }
+  }
+
+  .gallery-track.is-dragging,
+  .gallery-track.is-dragging .gallery-slide {
+    cursor: grabbing;
+    user-select: none;
+  }
+
+  .gallery-track.is-settling {
+    scroll-snap-type: none;
   }
 
   .gallery-slide {
@@ -252,16 +338,21 @@ const slides = [
   }
 
   .gallery-slide-wide {
-    width: min(488px, 100vw - 32px);
+    --slide-width: min(488px, 100vw - 32px);
   }
 
   .gallery-slide-narrow {
-    width: 220px;
+    --slide-width: 220px;
   }
 
-  /* Leaves room after the last slide so it can scroll fully into view */
+  .gallery-slide {
+    width: var(--slide-width);
+  }
+
+  /* Room after the last slide so it, too, can scroll to the column's left edge: the rest of the track's width
+     beside it (a percentage margin is of the track's content box, which starts at the column's left edge) */
   .gallery-slide:last-child {
-    margin-right: 16px;
+    margin-right: calc(100% - var(--slide-width));
   }
 
   .gallery-controls {

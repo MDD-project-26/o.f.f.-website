@@ -139,10 +139,10 @@ const handwriting = (svg: string, word: string) =>
             <span class="hero-title-line">Put your phone away.</span>
             <span class="hero-title-line hero-title-reveal"><span class="hero-title-word">Stay</span> <span class="hero-title-word">reachable.</span></span>
           </h1>
-          <div class="hero-actions">
-            <a class="button-solid" href="#contact">Contact</a>
-            <a class="button-light" href="#vision">Our vision</a>
-          </div>
+          <p class="hero-copy">
+            _off is a “smart pager” we’re building to bring important notifications off your phone and onto a separate
+            device.
+          </p>
         </div>
       </section>
 
@@ -216,7 +216,7 @@ const handwriting = (svg: string, word: string) =>
               You set your priorities. <span class="text-muted">AI checks incoming notifications against them and sends
               selected ones to the pager.</span>
             </p>
-            <a class="button-solid button-text" href="#demo">See demo</a>
+            <a class="button-solid button-text" href="/demo">See demo</a>
           </div>
         </div>
       </section>
@@ -393,7 +393,7 @@ const handwriting = (svg: string, word: string) =>
         <h2 class="footer-title" id="footer-title">Help us bring Off<br />into everyday use.</h2>
         <div class="footer-actions">
           <a class="button-solid button-text footer-button-primary" href="#contact">Contact</a>
-          <a class="button-solid button-text footer-button-ghost" href="#demo">See demo</a>
+          <a class="button-solid button-text footer-button-ghost" href="/demo">See demo</a>
         </div>
       </div>
 
@@ -744,6 +744,22 @@ const handwriting = (svg: string, word: string) =>
       }
 
       if (stage && pill) {
+        const darkModule = stage.parentElement as HTMLElement & { scrollYForRule?: (ruleTop: number) => number };
+
+        // Pin: the stage is held in the viewport while the module scrolls past by a scroll-driven animation that moves
+        // it down 1:1 with the scroll (see .dark-stage), not position: sticky. iOS Safari treats a pinned element
+        // reaching the screen's edge as a toolbar and fills a solid band behind its floating bottom bar instead of
+        // drawing the page on under it. The animation's range needs the module's place on the page, kept up to date
+        // here. Browsers without scroll-driven animations keep sticky.
+        if (CSS.supports("animation-timeline: scroll()")) {
+          const setPinStart = () =>
+            darkModule.style.setProperty("--pin-start", `${darkModule.getBoundingClientRect().top + scrollY}px`);
+          setPinStart();
+          darkModule.classList.add("is-scroll-pinned");
+          new ResizeObserver(setPinStart).observe(document.body);
+          addEventListener("resize", setPinStart);
+        }
+
         // The design's 2070px pill over a 1512x948 viewport is this much past the smallest covering scale
         const COVER_MARGIN = 1.056;
         const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -793,22 +809,19 @@ const handwriting = (svg: string, word: string) =>
         };
         addEventListener("resize", () => {
           cover = coverScale();
-          render();
+          updateProgress();
         });
-        scroll(
-          (value: number) => {
-            progressIn = value;
-            render();
-          },
-          { target: stage.parentElement!, offset: ["start end", "start start"] },
-        );
-        scroll(
-          (value: number) => {
-            progressOut = value;
-            render();
-          },
-          { target: stage.parentElement!, offset: ["end end", "end start"] },
-        );
+        // In: the module's top from the stage's height (the bottom of the screen) to 0; out: its bottom from there
+        // to 0. Measured against the stage (100lvh), not the window, whose height on iOS stops above the floating
+        // bottom bar, so both line up exactly with the pin.
+        const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
+        const updateProgress = () => {
+          const box = darkModule.getBoundingClientRect();
+          const height = stage.clientHeight;
+          progressIn = clamp01((height - box.top) / height);
+          progressOut = clamp01((height - box.bottom) / height);
+          render();
+        };
 
         // Gallery: while the stage is pinned, the slides scroll past as sections, one after another: the first starts
         // centred and the last ends centred. A section is its frame with SECTION_PAD above and below, and a
@@ -884,7 +897,6 @@ const handwriting = (svg: string, word: string) =>
 
         // For in-page links: the scroll position at which the first section's rule sits at `ruleTop` in the
         // viewport. The squeeze only ever increases, so it's inverted by bisection to find the gallery's progress.
-        const darkModule = stage.parentElement as HTMLElement & { scrollYForRule?: (ruleTop: number) => number };
         if (rules.length) {
           darkModule.scrollYForRule = (ruleTop) => {
             const { squeeze, start, end } = geometry();
@@ -942,8 +954,17 @@ const handwriting = (svg: string, word: string) =>
             if (!reduceMotion.matches) fill.style.transform = `translateY(${-travel * PARALLAX}%) scale(${ZOOM})`;
           });
         };
-        scroll(renderGallery, { target: stage.parentElement!, offset: ["start start", "end end"] });
-        render();
+        // Gallery: over exactly the pinned range, the same one scrollYForRule inverts
+        const updateGallery = () => {
+          const travel = darkModule.offsetHeight - stage.clientHeight;
+          renderGallery(travel > 0 ? clamp01(-darkModule.getBoundingClientRect().top / travel) : 0);
+        };
+        scroll(() => {
+          updateProgress();
+          updateGallery();
+        });
+        updateProgress();
+        updateGallery();
       }
     </script>
 
@@ -1145,6 +1166,8 @@ const handwriting = (svg: string, word: string) =>
 
   body {
     margin: 0;
+    /* Nothing may widen the page: anything that reaches past the viewport's sides is cut off there */
+    overflow-x: clip;
     background: var(--color-surface);
     color: var(--color-ink);
     font-family: var(--font-sans);
@@ -1467,7 +1490,7 @@ const handwriting = (svg: string, word: string) =>
     opacity: 0;
   }
 
-  /* Title bottom left, buttons bottom right, their bottoms level */
+  /* Title bottom left, copy bottom right, their bottoms level */
   .hero-intro {
     position: relative;
     display: flex;
@@ -1505,9 +1528,15 @@ const handwriting = (svg: string, word: string) =>
     display: inline-block;
   }
 
-  .hero-actions {
-    display: flex;
-    gap: 4px;
+  .hero-copy {
+    flex-shrink: 0;
+    width: min(366px, 100%);
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
   }
 
   /* Section labels: number and name in two 117px columns */
@@ -1567,19 +1596,47 @@ const handwriting = (svg: string, word: string) =>
     /* Gallery frames' height; each section is a frame with 96px above and below (SECTION_PAD in the script) */
     --frame-height: min(64vh, 680px);
     --frame-height: min(64svh, 680px);
-    /* One viewport for the stage, plus the gallery scrolling past it 1:1: from the first section centred to the last
+    /* How far the stage stays pinned: the gallery scrolling past it 1:1, from the first section centred to the last
        one centred, which is all but one section */
-    height: calc(100vh + (var(--slides) - 1) * (var(--frame-height) + 192px));
-    height: calc(100svh + (var(--slides) - 1) * (var(--frame-height) + 192px));
+    --pin-travel: calc((var(--slides) - 1) * (var(--frame-height) + 192px));
+    position: relative;
+    /* One viewport for the stage, plus the pinned scroll */
+    height: calc(100vh + var(--pin-travel));
+    height: calc(100lvh + var(--pin-travel));
   }
 
+  /* The full screen height (lvh), not svh: iOS Safari draws the page on under its floating bottom bar, and an
+     svh-tall stage left the white page showing below the pill there */
   .dark-stage {
     position: sticky;
     top: 0;
     height: 100vh;
-    height: 100svh;
+    height: 100lvh;
     /* Clipped at the sides only, so the pill doesn't widen the page; above and below it grows into the margins */
     overflow-x: clip;
+  }
+
+  /* Pinned without sticky (see the script): placed at the module's top and moved down 1:1 with the scroll from when
+     the module reaches the top of the viewport (--pin-start, set by the script) for --pin-travel. A scroll-driven
+     animation runs with the scroll itself, so the stage holds still on screen like a sticky one. */
+  .dark-module.is-scroll-pinned .dark-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    animation: dark-stage-pin linear both;
+    animation-timeline: scroll(root block);
+    animation-range-start: var(--pin-start);
+    animation-range-end: calc(var(--pin-start) + var(--pin-travel));
+  }
+
+  @keyframes dark-stage-pin {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(var(--pin-travel));
+    }
   }
 
   /* Viewport-sized stadium, scaled by the script */
@@ -1930,6 +1987,8 @@ const handwriting = (svg: string, word: string) =>
   /* 03 Demo: a ring of tiles orbiting the centred intro (src/scripts/orbit.ts) */
   .demo {
     padding: 0 var(--gutter) 320px;
+    /* Pushed-out tiles can reach past the screen's sides while scrolling; cut them off so the page doesn't widen */
+    overflow-x: clip;
   }
 
   .demo-stage {
@@ -2300,14 +2359,22 @@ const handwriting = (svg: string, word: string) =>
       --indent: 0px;
     }
 
+    /* The logo is centred between the header's bottom (its 12px inset plus the 40px pills) and the title's top:
+       the stage spans exactly that gap, with equal room above and below the logo */
     .hero {
-      padding-top: clamp(88px, 14svh, 120px);
+      padding-top: calc(var(--header-inset) + 40px);
+    }
+
+    .hero-stage {
+      display: grid;
+      place-items: center;
+      padding-block: 24px;
     }
 
     .hero-intro {
       flex-direction: column;
       align-items: flex-start;
-      padding-top: clamp(24px, 6svh, 48px);
+      padding-top: 0;
     }
 
     .product {
