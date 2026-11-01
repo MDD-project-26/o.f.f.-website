@@ -3,6 +3,8 @@
 // followed by the footer. For now any password unlocks it; the swap happens in the browser (see the scripts).
 // The header is the homepage's header in its dark state, without the scroll-driven tab indicator.
 import SiteFooter from "../components/SiteFooter.astro";
+import PasswordField from "../components/PasswordField.astro";
+import "../styles/demo-base.css";
 import logoMarkLight from "../assets/logo-mark-light.svg";
 import logoFreedomLight from "../assets/logo-freedom-light.svg";
 import logoForLight from "../assets/logo-for-light.svg";
@@ -70,21 +72,7 @@ const navLinks = [
     <main class="gate">
       <h1 class="gate-title">See the demo</h1>
 
-      <form class="gate-form">
-        <label class="gate-label" for="demo-password">Password</label>
-        <div class="gate-field">
-          <input
-            class="gate-input"
-            id="demo-password"
-            name="password"
-            type="password"
-            placeholder="Enter password"
-            autocomplete="current-password"
-            required
-          />
-          <button class="button-pill" type="submit">Enter <span aria-hidden="true">→</span></button>
-        </div>
-      </form>
+      <PasswordField />
 
       <p class="gate-copy">
         You want to put your phone away, but someone might need you. So you check it. While you’re there, you open
@@ -100,11 +88,10 @@ const navLinks = [
     </div>
 
     <script>
-      // Any password unlocks the demo for now. Remembered for the browser session (read again by the inline script
-      // in <head>) so a reload or another demo page stays unlocked. The form never submits, so the password doesn't
-      // end up in the URL. Focus moves to the page's [data-unlock-focus] element (its title).
-      document.querySelector<HTMLFormElement>(".gate-form")?.addEventListener("submit", (event) => {
-        event.preventDefault();
+      // Any password unlocks the demo for now (the field fires "password-submit" after its one-second spinner).
+      // Remembered for the browser session (read again by the inline script in <head>) so a reload or another demo
+      // page stays unlocked. Focus moves to the page's [data-unlock-focus] element (its title).
+      document.querySelector(".gate-form")?.addEventListener("password-submit", () => {
         try {
           sessionStorage.setItem("off-demo-unlocked", "1");
         } catch {}
@@ -115,127 +102,6 @@ const navLinks = [
     </script>
   </body>
 </html>
-<style is:global>
-  @font-face {
-    font-family: "ABC Areal";
-    src: url("/fonts/ABCAreal-Regular.woff2") format("woff2");
-    font-weight: 400;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: "ABC Areal";
-    src: url("/fonts/ABCAreal-Medium.woff2") format("woff2");
-    font-weight: 500;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: "ABC Areal Mono";
-    src: url("/fonts/ABCArealMono-Regular.woff2") format("woff2");
-    font-weight: 400;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: "ABC Areal Mono";
-    src: url("/fonts/ABCArealMono-Medium.woff2") format("woff2");
-    font-weight: 500;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: "Aspekta";
-    src: url("/fonts/Aspekta-550.woff2") format("woff2");
-    font-weight: 550;
-    font-display: swap;
-  }
-
-  :root {
-    --color-on-dark: #f5f5f5;
-    --color-on-dark-muted: rgb(245 245 245 / 0.5);
-    --color-glass-dark: rgb(241 241 241 / 0.1);
-    --font-title: "Aspekta", system-ui, sans-serif;
-    --font-label: "ABC Areal Mono", ui-monospace, monospace;
-    --font-ui: "ABC Areal", system-ui, sans-serif;
-    --color-on-dark-faint: rgb(245 245 245 / 0.3);
-    --color-hairline-dark: rgb(245 245 245 / 0.2);
-    --header-inset: 12px;
-    --radius-pill: 9999px;
-  }
-
-  html {
-    -webkit-font-smoothing: antialiased;
-  }
-
-  body {
-    margin: 0;
-    background: #000;
-    color: var(--color-on-dark);
-    font-family: var(--font-ui);
-  }
-
-  a {
-    color: inherit;
-    text-decoration: none;
-  }
-
-  /* Light pill button with dark text (Enter, Read more), used by the pages too */
-  .button-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 14px 21px;
-    border: 0;
-    border-radius: var(--radius-pill);
-    background: var(--color-on-dark);
-    color: #212122;
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 1;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .button-pill:focus-visible {
-    outline: 2px solid var(--color-on-dark);
-    outline-offset: 2px;
-  }
-
-  /* Press and hover feedback, as on the homepage */
-  .button-pill {
-    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
-  }
-
-  .button-pill:active {
-    transform: scale(0.97);
-  }
-
-  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-    .button-pill:hover {
-      transform: scale(1.03);
-      transition-duration: 300ms;
-    }
-
-    .button-pill:hover:active {
-      transform: scale(0.99);
-      transition-duration: 160ms;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .button-pill:active {
-      transform: none;
-    }
-  }
-
-  @media (hover: hover) {
-    .button-pill:hover {
-      background: #fff;
-    }
-  }
-</style>
 
 <style>
   /* Header: same geometry as the homepage's, in its dark state */
@@ -369,61 +235,8 @@ const navLinks = [
     letter-spacing: -0.03em;
   }
 
-  .gate-form {
-    display: flex;
-    flex-direction: column;
-    width: min(488px, 100%);
+  .gate :global(.gate-form) {
     margin-top: 72px;
-    text-align: left;
-  }
-
-  .gate-label {
-    padding: 0 0 8px 20px;
-    font-family: var(--font-label);
-    font-size: 10px;
-    font-weight: 400;
-    line-height: 1;
-    text-transform: uppercase;
-  }
-
-  .gate-field {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 2.5px 2.5px 2.5px 21px;
-    border: 1px solid rgb(255 255 255 / 0.04);
-    border-radius: var(--radius-pill);
-    background: var(--color-glass-dark);
-    transition: border-color 0.2s ease;
-  }
-
-  .gate-field:focus-within {
-    border-color: rgb(255 255 255 / 0.24);
-  }
-
-  .gate-input {
-    flex: 1;
-    min-width: 0;
-    padding: 0;
-    border: 0;
-    outline: none;
-    background: none;
-    color: var(--color-on-dark);
-    font-family: var(--font-ui);
-    font-size: 13px;
-    line-height: 1;
-  }
-
-  /* iOS Safari zooms the page into any focused field under 16px */
-  @media (pointer: coarse) {
-    .gate-input {
-      font-size: 16px;
-    }
-  }
-
-  .gate-input::placeholder {
-    color: var(--color-on-dark-muted);
-    opacity: 1;
   }
 
   .gate-copy {
@@ -507,7 +320,7 @@ const navLinks = [
       font-size: 40px;
     }
 
-    .gate-form {
+    .gate :global(.gate-form) {
       margin-top: 48px;
     }
 
