@@ -1,0 +1,293 @@
+---
+// One update from the demo's list, behind the same password gate (see DemoLayout).
+// TODO: the title, lead and body are placeholders from the design, and every update shows the same renders,
+// until the real updates exist.
+import { Image } from "astro:assets";
+import DemoLayout from "../../layouts/DemoLayout.astro";
+import render01 from "../../assets/off-render-01.png";
+import render02 from "../../assets/off-render-02.png";
+import render03 from "../../assets/off-render-03.png";
+import render04 from "../../assets/off-render-04.png";
+import { updates, type Update } from "../../data/updates";
+
+export function getStaticPaths() {
+  return updates.map((update) => ({ params: { slug: update.slug }, props: { update } }));
+}
+
+const { update } = Astro.props as { update: Update };
+
+const lead =
+  "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc sed neque nec turpis aliquet sollicitudin. Mauris suscipit non ante at volutpat. Pellentesque volutpat, ligula vitae suscipit tempus, urna diam interdum dui, vitae pharetra mi elit quis diam. Morbi massa risus, gravida id nibh in, eleifend elementum turpis.";
+const body = [
+  "Aenean id nisi nec elit aliquet ultrices. Nunc gravida, quam aliquet sodales iaculis, libero elit vulputate tellus, in facilisis lacus purus in velit. Ut ut aliquet nunc. Aenean eleifend aliquam blandit. Quisque eget orci ornare, rhoncus lectus vel, feugiat sem. Donec molestie nisl ut lacus lacinia, in pretium enim lobortis. Sed at nibh ut felis molestie accumsan non eget quam. In scelerisque sodales mi ac tristique. Fusce odio lacus, accumsan eu ipsum id, ultrices pretium odio. Vestibulum at lacinia velit, nec tincidunt libero. Sed cursus nisi purus, in interdum nisi luctus in. Phasellus interdum porttitor orci, id laoreet mauris maximus vitae. Etiam at dolor id dui convallis pulvinar. Vivamus dictum, lectus quis sollicitudin lacinia, est magna consequat dui, eget vulputate tellus libero finibus turpis.",
+  "Vivamus consequat in ex non egestas. Duis commodo sapien nec tempus vulputate. Vivamus nibh lectus, lacinia a elementum at, mattis sed lacus. Morbi sodales purus id nibh scelerisque, sed dapibus lorem faucibus. Praesent nec purus sed ligula tincidunt tincidunt nec in augue. Fusce a dapibus augue. Cras eu augue enim. Praesent pretium velit ut porttitor feugiat. In in ante vitae dolor placerat venenatis ac vel nulla. Etiam et eros sed massa faucibus hendrerit eu ac leo. Quisque tincidunt auctor urna, a egestas tellus suscipit eu. Nunc lobortis purus sed rhoncus gravida.",
+];
+// Gallery: alternating wide and narrow slides, as in the design. The square renders are cropped to fit.
+const slides = [
+  { size: "wide", image: render04, alt: "The pager taken apart, its layers stacked above one another" },
+  { size: "narrow", image: render01, alt: "The pager’s metal back with the o.f.f. logo" },
+  { size: "wide", image: render02, alt: "Close-up of the pager’s inside: the charging coil above the clear case" },
+  { size: "narrow", image: render03, alt: "The pager’s screen showing a message from Maya" },
+] as const;
+---
+
+<DemoLayout title={`${update.name} · Demo · o.f.f.`}>
+  <main class="article">
+    <h1 class="article-title" tabindex="-1" data-unlock-focus>Name of the update in a couple of lines</h1>
+
+    <div class="article-intro">
+      <p class="article-meta">
+        <span>Ver. {update.version}</span>
+        <span>{update.date}</span>
+      </p>
+      <Image
+        class="article-media"
+        src={render03}
+        alt="The pager’s screen showing a message from Maya"
+        widths={[488, 612]}
+        sizes="(max-width: 520px) calc(100vw - 32px), 488px"
+      />
+      <p class="article-lead">{lead}</p>
+    </div>
+
+    <div class="article-body">
+      <p>{lead}</p>
+    </div>
+
+    <div class="article-body">
+      {body.map((paragraph) => <p>{paragraph}</p>)}
+    </div>
+
+    <section class="gallery" aria-label="Gallery" data-gallery>
+      <ul class="gallery-track" data-gallery-track>
+        {
+          slides.map((slide) => (
+            <li class:list={["gallery-slide", `gallery-slide-${slide.size}`]}>
+              <Image
+                src={slide.image}
+                alt={slide.alt}
+                widths={slide.size === "wide" ? [488, 612] : [220, 440]}
+                sizes={slide.size === "wide" ? "(max-width: 520px) calc(100vw - 32px), 488px" : "220px"}
+              />
+            </li>
+          ))
+        }
+      </ul>
+      <div class="gallery-controls">
+        <button class="button-pill gallery-button" type="button" aria-label="Previous" data-gallery-prev disabled>←</button>
+        <button class="button-pill gallery-button" type="button" aria-label="Next" data-gallery-next>→</button>
+      </div>
+    </section>
+
+    <div class="article-body">
+      {body.map((paragraph) => <p>{paragraph}</p>)}
+    </div>
+  </main>
+</DemoLayout>
+
+<script>
+  // Gallery: the arrows scroll the track one slide at a time; each is dimmed at its end of the track.
+  document.querySelectorAll<HTMLElement>("[data-gallery]").forEach((gallery) => {
+    const track = gallery.querySelector<HTMLElement>("[data-gallery-track]")!;
+    const prev = gallery.querySelector<HTMLButtonElement>("[data-gallery-prev]")!;
+    const next = gallery.querySelector<HTMLButtonElement>("[data-gallery-next]")!;
+    const slides = [...track.children] as HTMLElement[];
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const update = () => {
+      const max = track.scrollWidth - track.clientWidth;
+      prev.disabled = track.scrollLeft <= 1;
+      next.disabled = track.scrollLeft >= max - 1;
+    };
+
+    const go = (direction: 1 | -1) => {
+      const left = track.scrollLeft;
+      // The first slide start past (or before) the current position
+      const starts = slides.map((slide) => slide.offsetLeft - track.offsetLeft);
+      const target =
+        direction === 1 ? starts.find((x) => x > left + 1) : [...starts].reverse().find((x) => x < left - 1);
+      track.scrollTo({ left: target ?? (direction === 1 ? track.scrollWidth : 0), behavior: reduceMotion.matches ? "auto" : "smooth" });
+    };
+
+    prev.addEventListener("click", () => go(-1));
+    next.addEventListener("click", () => go(1));
+    track.addEventListener("scroll", update, { passive: true });
+    // Also re-checks once the track becomes visible (it measures as empty while the password gate shows)
+    new ResizeObserver(update).observe(track);
+    update();
+  });
+</script>
+
+<style>
+  /* One 488px column, centred, as in the 1512px design */
+  .article {
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+    box-sizing: content-box;
+    width: min(488px, 100% - 32px);
+    margin: 0 auto;
+    /* The bottom padding is the least space left above the footer */
+    padding: 178px 0 160px;
+    /* Media height: 325px, scaled with the column on narrow screens */
+    --media-height: min(325px, (100vw - 32px) * 325 / 488);
+  }
+
+  .article-title {
+    margin: 0;
+    font-family: var(--font-title);
+    font-size: 48px;
+    font-weight: 550;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-feature-settings: "ss02";
+    outline: none;
+  }
+
+  .article-intro {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .article-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0;
+    font-family: var(--font-label);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+
+  .article-media {
+    display: block;
+    width: 100%;
+    height: var(--media-height);
+    /* The renders sit on pure black, so shown whole they blend into the page instead of being cropped */
+    object-fit: contain;
+    border-radius: 12px;
+    background: #000;
+    /* Hairline stroke over the image's edge, following its rounded corners */
+    outline: 0.5px solid rgb(245 245 245 / 0.1);
+    outline-offset: -0.5px;
+  }
+
+  .article-lead {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  /* Paragraphs one blank line apart */
+  .article-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5em;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: rgb(245 245 245 / 0.6);
+  }
+
+  .article-body p {
+    margin: 0;
+  }
+
+  /* Gallery: starts at the column's left edge and runs out to the right edge of the window */
+  .gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .gallery-track {
+    display: flex;
+    gap: 8px;
+    /* Out to the window's right edge */
+    margin: 0 calc((100% - 100vw) / 2) 0 0;
+    padding: 0;
+    list-style: none;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .gallery-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gallery-slide {
+    flex: none;
+    height: var(--media-height);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 0.1);
+    scroll-snap-align: start;
+    overflow: hidden;
+    /* Hairline stroke drawn over the slide's image, following its rounded corners */
+    outline: 0.5px solid rgb(245 245 245 / 0.1);
+    outline-offset: -0.5px;
+  }
+
+  .gallery-slide img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Whole render in the wide slides, on the render's own black */
+  .gallery-slide-wide {
+    background: #000;
+  }
+
+  .gallery-slide-wide img {
+    object-fit: contain;
+  }
+
+  .gallery-slide-wide {
+    width: min(488px, 100vw - 32px);
+  }
+
+  .gallery-slide-narrow {
+    width: 220px;
+  }
+
+  /* Leaves room after the last slide so it can scroll fully into view */
+  .gallery-slide:last-child {
+    margin-right: 16px;
+  }
+
+  .gallery-controls {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .gallery-button {
+    transition-property: transform, opacity;
+  }
+
+  .gallery-button:disabled {
+    opacity: 0.1;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  @media (max-width: 720px) {
+    .article {
+      padding-top: 104px;
+      padding-bottom: 120px;
+    }
+
+    .article-title {
+      font-size: 40px;
+    }
+  }
+</style>

@@ -1,0 +1,354 @@
+---
+// The o.f.f. mark as a working switch (paths from the "Frame 24" logo export):
+// the pill is the track, the "O" ring is the knob, and "ff" with its crossbar fade as the knob passes.
+const KNOB_TRAVEL = 10.3844; // knob centre moves from x 10.0004 to the track's right end at x 20.3848
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>o.f.f. toggle</title>
+  </head>
+  <body>
+    <main>
+      <button class="toggle" type="button" role="switch" aria-checked="false" aria-label="o.f.f.">
+        <svg viewBox="0 0 31 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <!-- A capsule trailing the knob hides the letters: a circle concentric with the O cuts them, and
+                 everything the knob has passed (left of its centre, within the ring's height) stays hidden -->
+            <mask id="letters-mask" maskUnits="userSpaceOnUse" x="-5" y="-5" width="41" height="30">
+              <rect x="-5" y="-5" width="41" height="30" fill="#fff"></rect>
+              <rect class="letters-mask-passed" x="-5" y="4.9155" width="15.0004" height="10.1694" fill="#000"></rect>
+              <circle class="letters-mask-knob" cx="10.0004" cy="10.0002" r="5.0847" fill="#000"></circle>
+            </mask>
+          </defs>
+          <path
+            class="track"
+            d="M20.3848 0C25.9075 8.09981e-05 30.3848 4.4772 30.3848 10C30.3848 15.4797 25.977 19.9298 20.5137 19.999L20.3848 20H10L9.87109 19.999C4.40779 19.9298 0 15.4797 0 10C9.66387e-08 4.47715 4.47715 2.01953e-07 10 0H20.3848ZM10 1.53809C5.32682 1.53809 1.53809 5.32682 1.53809 10C1.53809 14.6732 5.32682 18.4619 10 18.4619H20.3848C25.0579 18.4618 28.8457 14.6731 28.8457 10C28.8457 5.32687 25.0579 1.53817 20.3848 1.53809H10Z"
+            fill-rule="evenodd"
+            clip-rule="evenodd"></path>
+          <g mask="url(#letters-mask)">
+            <g class="letters">
+              <path d="M19.6155 4.6154C20.0404 4.6154 20.3848 4.9598 20.3848 5.38463C20.3848 5.80947 20.0404 6.15386 19.6155 6.15386C18.7659 6.15386 18.0771 6.84266 18.0771 7.69233L18.0771 14.6154C18.0771 15.0402 17.7327 15.3846 17.3078 15.3846C16.883 15.3846 16.5386 15.0402 16.5386 14.6154L16.5386 7.69232C16.5386 5.99299 17.9162 4.6154 19.6155 4.6154Z"></path>
+              <path d="M23.4617 4.6154C23.8866 4.6154 24.231 4.9598 24.231 5.38463C24.231 5.80947 23.8866 6.15386 23.4617 6.15386C22.6121 6.15386 21.9233 6.84266 21.9233 7.69233L21.9233 14.6154C21.9233 15.0402 21.5789 15.3846 21.154 15.3846C20.7292 15.3846 20.3848 15.0402 20.3848 14.6154L20.3848 7.69232C20.3848 5.99299 21.7624 4.6154 23.4617 4.6154Z"></path>
+              <path d="M13.8462 10.1925C13.8462 9.76768 14.1906 9.42328 14.6154 9.42328H23.4616C23.8864 9.42328 24.2308 9.76768 24.2308 10.1925V10.1925C24.2308 10.6173 23.8864 10.9617 23.4616 10.9617H14.6154C14.1906 10.9617 13.8462 10.6173 13.8462 10.1925V10.1925Z"></path>
+            </g>
+          </g>
+          <g class="knob">
+            <!-- Solid centre: white on the light page, black on the dark one (set in the script), so the
+                 circle's edge never shows through the O -->
+            <circle class="knob-core" cx="10.0004" cy="10.0002" r="4.2"></circle>
+            <path d="M10.0004 4.6154C12.9741 4.61548 15.3851 7.02638 15.3851 10.0002C15.3851 12.9739 12.9741 15.3849 10.0004 15.3849C7.02658 15.3849 4.61568 12.9739 4.6156 10.0002C4.6156 7.02633 7.02653 4.6154 10.0004 4.6154ZM10.0004 6.15349C7.87619 6.15349 6.15369 7.876 6.15369 10.0002C6.15377 12.1243 7.87624 13.8459 10.0004 13.8459C12.1244 13.8458 13.846 12.1242 13.8461 10.0002C13.8461 7.87605 12.1245 6.15357 10.0004 6.15349Z"></path>
+          </g>
+        </svg>
+      </button>
+    </main>
+
+    <!-- Dark page behind the toggle: grows out of the knob as the switch turns on -->
+    <div class="backdrop" aria-hidden="true"></div>
+
+    <script define:vars={{ KNOB_TRAVEL }}>
+      // Springs drive everything so the switch can be grabbed and reversed at any moment:
+      // - knob: critically damped (damping 1, response 0.35s) for taps; a flick release keeps its velocity
+      //   and settles with a slight bounce (damping 0.8), landing on the side the gesture was heading.
+      // - press: the knob shrinks to 0.94 the instant it's pressed (response 0.12s) and eases back on
+      //   release (response 0.3s), so feedback lands on pointer-down, not on release.
+      const toggle = document.querySelector(".toggle");
+      const svg = toggle.querySelector("svg");
+      const knob = toggle.querySelector(".knob");
+      const letters = toggle.querySelector(".letters");
+      const maskPassed = toggle.querySelector(".letters-mask-passed");
+      const maskKnob = toggle.querySelector(".letters-mask-knob");
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+      const KNOB_CENTRE = "10.0004 10.0002";
+      const PRESS_SCALE = 0.94;
+      const LETTERS_SHIFT = 2; // svg units (~10px at 96px tall) the letters slide left as the knob moves over them
+      const KNOB_RADIUS = 5.3847;
+      const MASK_MARGIN = 0.5; // gap between the moving ring and the letters it cuts
+      const MASK_INSET = 0.3; // at rest the cut sits inside the ring, so its edge never shows a seam at the crossbar
+
+      const knobSpring = { value: 0, velocity: 0, target: 0, response: 0.35, damping: 1, held: false };
+      const pressSpring = { value: 0, velocity: 0, target: 0, response: 0.3, damping: 1, held: false };
+      let frame = 0;
+      let lastTime = 0;
+
+      const clamp01 = (n) => Math.min(Math.max(n, 0), 1);
+
+      const backdrop = document.querySelector(".backdrop");
+      const core = toggle.querySelector(".knob-core");
+      const smoothstep = (t) => t * t * (3 - 2 * t);
+
+      // The dark page spreads from the knob's centre behind the toggle; its radius follows the knob, so it
+      // reverses with it. The toggle turns from black to white while the circle grows past it.
+      const renderBackdrop = (x, progress) => {
+        if (reduceMotion.matches) {
+          const dark = progress > 0.5;
+          backdrop.style.clipPath = "none";
+          backdrop.style.opacity = dark ? "1" : "0";
+          toggle.style.color = dark ? "#fff" : "#000";
+          core.style.fill = dark ? "#000" : "#fff";
+          return;
+        }
+        const box = svg.getBoundingClientRect();
+        const cx = box.left + ((10.0004 + x) / 31) * box.width;
+        const cy = box.top + box.height / 2;
+        const radius = Math.hypot(Math.max(cx, innerWidth - cx), Math.max(cy, innerHeight - cy)) * progress;
+        const coverRadius = Math.hypot(Math.max(cx - box.left, box.right - cx), box.height / 2);
+        const ink = Math.round(255 * smoothstep(clamp01(radius / coverRadius)));
+        backdrop.style.opacity = "1";
+        backdrop.style.clipPath = `circle(${radius.toFixed(1)}px at ${cx.toFixed(1)}px ${cy.toFixed(1)}px)`;
+        toggle.style.color = `rgb(${ink} ${ink} ${ink})`;
+        // Always solid: white while the toggle is still dark, black once it has turned light
+        core.style.fill = ink < 128 ? "#fff" : "#000";
+      };
+
+      const render = () => {
+        const x = knobSpring.value;
+        const progress = clamp01(x / KNOB_TRAVEL);
+        const scale = 1 - (1 - PRESS_SCALE) * pressSpring.value;
+        knob.setAttribute("transform", `translate(${x} 0) translate(${KNOB_CENTRE}) scale(${scale}) translate(-${KNOB_CENTRE.replace(" ", " -")})`);
+
+        // The line and both f's slide slightly left while the knob moves over them. The mask hides what the
+        // knob has passed; its margin grows in over the first quarter of travel, so the resting logo is untouched.
+        letters.setAttribute("transform", `translate(${-LETTERS_SHIFT * progress} 0)`);
+        const engaged = clamp01(progress * 4);
+        const margin = -MASK_INSET + (MASK_MARGIN + MASK_INSET) * engaged;
+        // The trailing band keeps the unpressed height, so pressing never uncovers letters the knob has passed
+        const bandRadius = KNOB_RADIUS + margin;
+        maskPassed.setAttribute("y", String(10.0002 - bandRadius));
+        maskPassed.setAttribute("height", String(2 * bandRadius));
+        maskPassed.setAttribute("width", String(15.0004 + x));
+        maskKnob.setAttribute("cx", String(10.0004 + x));
+        maskKnob.setAttribute("r", String(KNOB_RADIUS * scale + margin));
+
+        renderBackdrop(x, progress);
+      };
+
+      const step = (spring, dt) => {
+        if (spring.held) return true;
+        const omega = (2 * Math.PI) / spring.response;
+        for (let remaining = dt; remaining > 0; remaining -= 1 / 240) {
+          const h = Math.min(remaining, 1 / 240);
+          spring.velocity += (-omega * omega * (spring.value - spring.target) - 2 * spring.damping * omega * spring.velocity) * h;
+          spring.value += spring.velocity * h;
+        }
+        if (Math.abs(spring.value - spring.target) < 0.001 && Math.abs(spring.velocity) < 0.01) {
+          spring.value = spring.target;
+          spring.velocity = 0;
+          return true;
+        }
+        return false;
+      };
+
+      const tick = (time) => {
+        const dt = Math.min((time - lastTime) / 1000, 1 / 30);
+        lastTime = time;
+        const settled = step(knobSpring, dt) & step(pressSpring, dt);
+        render();
+        frame = settled ? 0 : requestAnimationFrame(tick);
+      };
+
+      const run = () => {
+        if (frame) return;
+        lastTime = performance.now();
+        frame = requestAnimationFrame(tick);
+      };
+
+      // Reduced motion: no travel. The knob cross-fades to its new side instead of teleporting.
+      let fadeTimer = 0;
+      const crossFade = () => {
+        clearTimeout(fadeTimer);
+        toggle.classList.add("is-fading");
+        fadeTimer = setTimeout(() => {
+          knobSpring.value = knobSpring.target;
+          knobSpring.velocity = 0;
+          render();
+          toggle.classList.remove("is-fading");
+        }, 150);
+      };
+
+      const setOn = (on, { damping = 1 } = {}) => {
+        const changed = toggle.getAttribute("aria-checked") !== String(on);
+        knobSpring.target = on ? KNOB_TRAVEL : 0;
+        knobSpring.damping = damping;
+        toggle.setAttribute("aria-checked", String(on));
+        if (changed) navigator.vibrate?.(8); // same frame as the commit; ignored where unsupported
+        if (reduceMotion.matches) crossFade();
+        else run();
+      };
+
+      const press = (down) => {
+        if (reduceMotion.matches) return;
+        pressSpring.target = down ? 1 : 0;
+        pressSpring.response = down ? 0.12 : 0.3;
+        run();
+      };
+
+      // Dragging the knob: 1:1 tracking from where it was grabbed, soft resistance past either end,
+      // and momentum (not just position) decides the side.
+      const unitsPerPixel = () => 31 / svg.getBoundingClientRect().width;
+      const rubberband = (overshoot) => (overshoot * 2 * 0.55) / (2 + 0.55 * Math.abs(overshoot));
+      const project = (velocity) => ((velocity / 1000) * 0.99) / (1 - 0.99);
+      const DRAG_THRESHOLD = 6; // px of hysteresis before a press becomes a drag; the knob travels ~50px
+      let drag = null;
+      let suppressClick = false;
+
+      toggle.addEventListener("pointerdown", (event) => {
+        toggle.setPointerCapture(event.pointerId);
+        knobSpring.held = true; // grab the knob where it is on screen, mid-flight included
+        knobSpring.velocity = 0;
+        drag = { startX: event.clientX, startValue: knobSpring.value, moved: false, samples: [[event.timeStamp, knobSpring.value]] };
+        press(true);
+      });
+
+      toggle.addEventListener("pointermove", (event) => {
+        if (!drag) return;
+        const dx = event.clientX - drag.startX;
+        if (!drag.moved && Math.abs(dx) < DRAG_THRESHOLD) return;
+        if (!drag.moved) {
+          drag.moved = true;
+          drag.startX = event.clientX; // start tracking from here so the knob doesn't jump by the threshold
+        }
+        if (reduceMotion.matches) return;
+        const raw = drag.startValue + (event.clientX - drag.startX) * unitsPerPixel();
+        knobSpring.value = raw < 0 ? rubberband(raw) : raw > KNOB_TRAVEL ? KNOB_TRAVEL + rubberband(raw - KNOB_TRAVEL) : raw;
+        drag.samples.push([event.timeStamp, knobSpring.value]);
+        if (drag.samples.length > 5) drag.samples.shift();
+        render();
+      });
+
+      const endDrag = () => {
+        if (!drag) return;
+        knobSpring.held = false;
+        press(false);
+        if (drag.moved) {
+          const [[t0, v0]] = drag.samples;
+          const [t1, v1] = drag.samples[drag.samples.length - 1];
+          const velocity = t1 > t0 ? ((v1 - v0) / (t1 - t0)) * 1000 : 0; // svg units per second
+          knobSpring.velocity = velocity;
+          suppressClick = true;
+          // A flick carried momentum, so it may overshoot a little; a slow drag settles without bounce
+          setOn(knobSpring.value + project(velocity) > KNOB_TRAVEL / 2, { damping: Math.abs(velocity) > 20 ? 0.8 : 1 });
+        } else {
+          run(); // a tap that grabbed a moving knob lets it carry on; click then decides the target
+        }
+        drag = null;
+      };
+      toggle.addEventListener("pointerup", endDrag);
+      toggle.addEventListener("pointercancel", endDrag);
+
+      // Click covers taps and the keyboard (Space / Enter on the button)
+      toggle.addEventListener("click", () => {
+        if (suppressClick) {
+          suppressClick = false;
+          return;
+        }
+        setOn(toggle.getAttribute("aria-checked") !== "true");
+      });
+
+      render();
+    </script>
+  </body>
+</html>
+
+<style>
+  /* Black on white whatever the system theme; turning the switch on makes the page dark and the toggle white */
+  :root {
+    color-scheme: light;
+    --color-ink: #000;
+    --color-surface: #fff;
+  }
+
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-surface);
+  }
+
+  main {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    min-height: 100%;
+    padding: 0 16px;
+    box-sizing: border-box;
+  }
+
+  .toggle {
+    display: block;
+    /* Logo is 96px tall */
+    width: auto;
+    padding: 6px;
+    border: 0;
+    background: none;
+    color: var(--color-ink);
+    cursor: pointer;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .toggle svg {
+    display: block;
+    width: auto;
+    height: 96px;
+    overflow: visible;
+  }
+
+  /* Logo shapes only: the mask's own shapes must keep their black/white fills */
+  .toggle :is(.track, .letters path, .knob path) {
+    fill: currentColor;
+  }
+
+  .toggle .knob-core {
+    fill: #fff;
+  }
+
+  /* Sits behind the toggle, so its edge never cuts through the logo */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: #000;
+    pointer-events: none;
+    clip-path: circle(0 at 50% 50%);
+  }
+
+  /* Reduced motion: the knob fades out, moves, and fades back in (150ms, ease-out) */
+  .toggle .knob {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toggle .knob {
+      transition: opacity 150ms ease-out;
+    }
+
+    .toggle.is-fading .knob {
+      opacity: 0;
+    }
+
+    /* No spreading circle: the page and toggle fade between light and dark */
+    .backdrop {
+      transition: opacity 150ms ease-out;
+    }
+
+    .toggle {
+      transition: color 150ms ease-out;
+    }
+  }
+
+  .toggle:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 4px;
+    border-radius: 9999px;
+  }
+</style>

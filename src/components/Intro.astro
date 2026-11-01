@@ -1,0 +1,409 @@
+---
+// Page-load intro: the white o.f.f. mark on black switches on, then grows into the hero's liquid
+// metal logo while the black fades away. The hero logo is the mark's "Off" letters without the pill,
+// so during the grow both are scaled together with their letters overlapping exactly. Mark paths and
+// knob/mask geometry match src/pages/toggle.astro. Animated with Motion (motion.dev).
+---
+
+<!-- Plays when the page opens at the top: skipped on a reload or back/forward visit that the browser will put
+     back below the top (it restores the scroll only after this runs, so the position saved on leaving is used),
+     and on links to a section (#problem). ?speed=0.5 slows it down; ?nointro skips it. Runs before first paint,
+     so the page never flashes before the overlay. -->
+<script is:inline>
+  (() => {
+    const KEY = "intro-scroll-y";
+    let savedY = 0;
+    try {
+      savedY = Number(sessionStorage.getItem(KEY)) || 0;
+    } catch {}
+    addEventListener("pagehide", () => {
+      try {
+        sessionStorage.setItem(KEY, String(scrollY));
+      } catch {}
+    });
+
+    const navigation = performance.getEntriesByType("navigation")[0];
+    const restoresScroll = navigation?.type === "reload" || navigation?.type === "back_forward";
+    const opensAtTop = !location.hash && !(restoresScroll && savedY > 0);
+    if (opensAtTop && !new URLSearchParams(location.search).has("nointro")) {
+      document.documentElement.classList.add("has-intro");
+    }
+  })();
+  // The title starts with its first line in the second's place, with or without the intro
+  document.documentElement.classList.add("title-push");
+</script>
+
+<div class="intro" aria-hidden="true">
+  <!-- The pill and the letters are separate layers: the letters land on the hero logo, the pill keeps going -->
+  <div class="intro-mark">
+    <svg class="intro-ring" viewBox="0 0 31 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- The page is seen through the pill: solid ground colour outside its outer edge, which scales away with
+           the ring, and a fill inside it that fades. Before the grow both just sit on the overlay's ground. -->
+      <defs>
+        <!-- Soft shadow under the ring, in its own units so it grows with it. It only shows where it falls inward
+             onto the page; outside it lands on the solid ground. -->
+        <filter id="intro-ring-shadow" x="-20%" y="-30%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="0.3" stdDeviation="0.6" flood-color="#000" flood-opacity="0.3"></feDropShadow>
+        </filter>
+      </defs>
+      <path class="intro-outside" d="M-5000 -5000H5000V5000H-5000ZM20.3848 0C25.9075 8.09981e-05 30.3848 4.4772 30.3848 10C30.3848 15.4797 25.977 19.9298 20.5137 19.999L20.3848 20H10L9.87109 19.999C4.40779 19.9298 0 15.4797 0 10C9.66387e-08 4.47715 4.47715 2.01953e-07 10 0H20.3848Z" fill-rule="evenodd"></path>
+      <path class="intro-inside" d="M20.3848 0C25.9075 8.09981e-05 30.3848 4.4772 30.3848 10C30.3848 15.4797 25.977 19.9298 20.5137 19.999L20.3848 20H10L9.87109 19.999C4.40779 19.9298 0 15.4797 0 10C9.66387e-08 4.47715 4.47715 2.01953e-07 10 0H20.3848Z"></path>
+      <path
+        class="intro-shape"
+        filter="url(#intro-ring-shadow)"
+        d="M20.3848 0C25.9075 8.09981e-05 30.3848 4.4772 30.3848 10C30.3848 15.4797 25.977 19.9298 20.5137 19.999L20.3848 20H10L9.87109 19.999C4.40779 19.9298 0 15.4797 0 10C9.66387e-08 4.47715 4.47715 2.01953e-07 10 0H20.3848ZM10 1.53809C5.32682 1.53809 1.53809 5.32682 1.53809 10C1.53809 14.6732 5.32682 18.4619 10 18.4619H20.3848C25.0579 18.4618 28.8457 14.6731 28.8457 10C28.8457 5.32687 25.0579 1.53817 20.3848 1.53809H10Z"
+        fill-rule="evenodd"
+        clip-rule="evenodd"></path>
+    </svg>
+    <svg class="intro-logo" viewBox="0 0 31 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <mask id="intro-letters-mask" maskUnits="userSpaceOnUse" x="-5" y="-5" width="41" height="30">
+          <rect x="-5" y="-5" width="41" height="30" fill="#fff"></rect>
+          <rect class="intro-mask-passed" x="-5" y="4.9155" width="15.0004" height="10.1694" fill="#000"></rect>
+        </mask>
+        <!-- The pill's opening, scaled with the ring as it scales in, so the knob and letters stay put and are
+             uncovered by the ring rather than growing with it. Scaled around the letters' centre, like the ring. -->
+        <clipPath id="intro-opening-clip">
+          <path
+            class="intro-opening"
+            transform="translate(14.4233 10.0002) scale(0) translate(-14.4233 -10.0002)"
+            d="M10 1.53809C5.32682 1.53809 1.53809 5.32682 1.53809 10C1.53809 14.6732 5.32682 18.4619 10 18.4619H20.3848C25.0579 18.4618 28.8457 14.6731 28.8457 10C28.8457 5.32687 25.0579 1.53817 20.3848 1.53809H10Z"
+          ></path>
+        </clipPath>
+      </defs>
+      <g clip-path="url(#intro-opening-clip)">
+        <g mask="url(#intro-letters-mask)">
+          <g class="intro-letters">
+            <path class="intro-shape" d="M19.6155 4.6154C20.0404 4.6154 20.3848 4.9598 20.3848 5.38463C20.3848 5.80947 20.0404 6.15386 19.6155 6.15386C18.7659 6.15386 18.0771 6.84266 18.0771 7.69233L18.0771 14.6154C18.0771 15.0402 17.7327 15.3846 17.3078 15.3846C16.883 15.3846 16.5386 15.0402 16.5386 14.6154L16.5386 7.69232C16.5386 5.99299 17.9162 4.6154 19.6155 4.6154Z"></path>
+            <path class="intro-shape" d="M23.4617 4.6154C23.8866 4.6154 24.231 4.9598 24.231 5.38463C24.231 5.80947 23.8866 6.15386 23.4617 6.15386C22.6121 6.15386 21.9233 6.84266 21.9233 7.69233L21.9233 14.6154C21.9233 15.0402 21.5789 15.3846 21.154 15.3846C20.7292 15.3846 20.3848 15.0402 20.3848 14.6154L20.3848 7.69232C20.3848 5.99299 21.7624 4.6154 23.4617 4.6154Z"></path>
+            <path class="intro-shape" d="M13.8462 10.1925C13.8462 9.76768 14.1906 9.42328 14.6154 9.42328H23.4616C23.8864 9.42328 24.2308 9.76768 24.2308 10.1925V10.1925C24.2308 10.6173 23.8864 10.9617 23.4616 10.9617H14.6154C14.1906 10.9617 13.8462 10.6173 13.8462 10.1925V10.1925Z"></path>
+          </g>
+        </g>
+        <g class="intro-knob">
+          <circle class="intro-knob-core" cx="10.0004" cy="10.0002" r="4.2"></circle>
+          <path class="intro-shape" d="M10.0004 4.6154C12.9741 4.61548 15.3851 7.02638 15.3851 10.0002C15.3851 12.9739 12.9741 15.3849 10.0004 15.3849C7.02658 15.3849 4.61568 12.9739 4.6156 10.0002C4.6156 7.02633 7.02653 4.6154 10.0004 4.6154ZM10.0004 6.15349C7.87619 6.15349 6.15369 7.876 6.15369 10.0002C6.15377 12.1243 7.87624 13.8459 10.0004 13.8459C12.1244 13.8458 13.846 12.1242 13.8461 10.0002C13.8461 7.87605 12.1245 6.15357 10.0004 6.15349Z"></path>
+        </g>
+      </g>
+    </svg>
+  </div>
+</div>
+
+<script>
+  import { animate, motionValue, stagger } from "motion";
+
+  // The whole intro is one Motion timeline, overlapped so it reads as one motion:
+  // 1. the pill scales in from 0 on the grow's curve; the knob and letters inside stay at full size, uncovered by
+  //    its opening as it grows;
+  // 2. after a short hold on the landed mark, the knob switches from off (right, letters hidden) to on (the
+  //    full logo) on a cubic ease-in-out, the ff sliding into place with it;
+  // 3. a beat after the knob lands, the grow (an asymmetric ease-in-out): the mark and the hero's liquid
+  //    metal logo grow together with their letters overlapping 1:1, the white letters fade, the page shows
+  //    through the pill (solid black outside it, a fading fill inside) as it zooms out past the viewport, and
+  //    the header and hero text slide in, the title showing only its first line, in the second line's place;
+  // 4. 0.35s after the title lands, the second line's words rise one by one out of a clip below it,
+  //    pushing the first line up into place.
+  //    Without the intro, the title push still plays, 0.2s after the page loads.
+  // ?speed= (e.g. 0.1) sets the playback rate; the /intro preview page can also change it live.
+  const intro = document.querySelector<HTMLElement>(".intro");
+  const SPEED = Number(new URLSearchParams(location.search).get("speed")) || 1;
+
+  // The scale-in, the grow and the title reveal share one curve: an asymmetric ease-in-out, slow to pick up and
+  // with a long settle. A spring from rest can't start this gently: its first push is set by stiffness alone,
+  // and more damping only drags out the end.
+  const introEase: [number, number, number, number] = [0.55, 0, 0.15, 1];
+
+  // Title push: the first line and the second line's words ride the same curve, the words staggered, so the
+  // reveal reads as pushing the first line. As long on screen as the scale-in.
+  const firstLine = document.querySelector<HTMLElement>(".hero-title-line:not(.hero-title-reveal)");
+  const words = [...document.querySelectorAll<HTMLElement>(".hero-title-word")];
+  // Real seconds before the push: from page load without the intro, or from when the hero text looks landed
+  const TITLE_PUSH_DELAY = 0.2;
+  const TITLE_PUSH_DELAY_AFTER_INTRO = 0.35;
+  const WORD_STAGGER = 0.08;
+  // A word sits this far down to clear its line's clip, which reaches 0.2em below the line (see index.astro)
+  const WORD_HIDDEN = "120%";
+  const PUSH_DURATION = 0.7; // real seconds (not stretched by TEMPO)
+  const pushTween = { duration: PUSH_DURATION, ease: introEase };
+  let titlePush: ReturnType<typeof animate> | undefined;
+
+  const pushTitle = (delay: number) => {
+    const done = () => {
+      [firstLine, ...words].forEach((element) => element?.style.removeProperty("transform"));
+      document.documentElement.classList.remove("title-push");
+    };
+    if (!firstLine || !words.length) return done();
+    titlePush = animate(
+      [
+        [firstLine, { y: ["100%", "0%"] }, { ...pushTween, at: delay }],
+        [words, { y: [WORD_HIDDEN, "0%"] }, { ...pushTween, at: delay, delay: stagger(WORD_STAGGER) }],
+      ],
+      { reduceMotion: false },
+    );
+    titlePush.speed = SPEED;
+    titlePush.then(done);
+  };
+
+  addEventListener("message", ({ data, origin }) => {
+    if (origin === location.origin && data?.type === "intro-speed" && typeof data.speed === "number" && titlePush) titlePush.speed = data.speed;
+  });
+
+  if (intro && document.documentElement.classList.contains("has-intro")) {
+    const svg = intro.querySelector<SVGSVGElement>(".intro-logo")!;
+    const ring = intro.querySelector<SVGSVGElement>(".intro-ring")!;
+    const inside = intro.querySelector<SVGPathElement>(".intro-inside")!;
+    const knob = intro.querySelector<SVGGElement>(".intro-knob")!;
+    const opening = intro.querySelector<SVGPathElement>(".intro-opening")!;
+    const letters = intro.querySelector<SVGGElement>(".intro-letters")!;
+    const maskPassed = intro.querySelector<SVGRectElement>(".intro-mask-passed")!;
+    const heroShader = document.querySelector<HTMLElement>(".hero-shader");
+    const header = document.querySelector<HTMLElement>(".site-header");
+    const heroText = document.querySelector<HTMLElement>(".hero-intro");
+
+    // Overall pace: every duration below is stretched by this (1.4 = 40% slower), keeping their proportions
+    const TEMPO = 1.4;
+
+    // Timing, in seconds at TEMPO 1
+    const SCALE_IN = 0.5;
+    const SWITCH_AT = 0.75; // the scale-in looks settled by ~0.4, so this leaves a hold before the knob moves
+    const SWITCH_DURATION = 0.26; // knob travel from off to on
+    const GROW_AFTER_SWITCH = 0.35; // the grow starts this long after the knob lands: the same hold as before the switch
+    const SLIDE_STAGGER = { header: 0.07, text: 0.1 }; // header and hero text start this long into the grow
+
+    const GROW_DURATION = 0.9;
+    // Header and text slides: critically damped spring with a 0.8s response (stiffness ω², damping 2ω, mass 1).
+    // They move in pixels, so they end within half a pixel and the page is usable straight away.
+    const SLIDE_OMEGA = (2 * Math.PI) / 0.8;
+    // The slide looks landed (a few pixels left) this long after it starts, well before the spring rests
+    const TEXT_LANDED_AFTER = 0.8;
+    const slideSpring = {
+      type: "spring",
+      stiffness: SLIDE_OMEGA ** 2,
+      damping: 2 * SLIDE_OMEGA,
+      restDelta: 0.5,
+      restSpeed: 2,
+    } as const;
+
+    // Curves Motion's named easings don't cover exactly
+    const cubicInOut = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+    const smoothstep = (t: number) => t * t * (3 - 2 * t);
+    const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
+
+    // Mark geometry (31x20 viewBox), matching src/pages/toggle.astro
+    const KNOB_TRAVEL = 10.3844;
+    const LETTERS_SHIFT = 2;
+    const KNOB_RADIUS = 5.3847;
+    const MASK_MARGIN = 0.5;
+    const MASK_INSET = 0.3;
+    // The "Off" letters when on: x 4.6156 to 24.231, y 4.6154 to 15.3849
+    const LETTERS_CENTRE = { x: 14.4233 / 31, y: 10.0002 / 20 };
+    const LETTERS_HEIGHT = 10.7695 / 20;
+    // A disc this radius around the letters' centre stays inside the pill's opening
+    const RING_INNER_RADIUS = 8.4619;
+    // Hero wordmark: viewBox height 324 around a 300-tall glyph, drawn at contain fit, scale 0.8
+    const HERO_ASPECT = 571 / 324;
+    const HERO_GLYPH_SHARE = (300 / 324) * 0.8;
+
+    // Switch: the knob's offset drives the ff's slide and the letters mask, so they move as one
+    const knobX = motionValue(KNOB_TRAVEL);
+    const renderSwitch = () => {
+      const x = knobX.get();
+      const progress = clamp01(x / KNOB_TRAVEL);
+      knob.setAttribute("transform", `translate(${x} 0)`);
+      letters.setAttribute("transform", `translate(${-LETTERS_SHIFT * progress} 0)`);
+      const bandRadius = KNOB_RADIUS - MASK_INSET + (MASK_MARGIN + MASK_INSET) * clamp01(progress * 4);
+      maskPassed.setAttribute("y", String(10.0002 - bandRadius));
+      maskPassed.setAttribute("height", String(2 * bandRadius));
+      maskPassed.setAttribute("width", String(15.0004 + x));
+    };
+    knobX.on("change", renderSwitch);
+    renderSwitch();
+
+    // Scale-in: only the ring grows; the clip on the knob and letters follows its opening
+    const scaleIn = motionValue(0);
+    scaleIn.on("change", (scale) => {
+      ring.style.transform = `scale(${scale})`;
+      opening.setAttribute(
+        "transform",
+        `translate(${LETTERS_CENTRE.x * 31} ${LETTERS_CENTRE.y * 20}) scale(${scale}) translate(${-LETTERS_CENTRE.x * 31} ${-LETTERS_CENTRE.y * 20})`,
+      );
+    });
+
+    // Grow: one progress value drives everything that has to stay locked together. The mark goes from its
+    // own size to the hero letters' size; the hero logo starts shrunk onto the mark's letters and returns to
+    // its own size, so their letters overlap 1:1 every frame. Measured when the grow starts.
+    type Grow = { dx: number; dy: number; scale: number; ringScale: number };
+    let grow: Grow | null | undefined;
+    const measureGrow = (): Grow | null => {
+      const hero = document.querySelector(".hero-visual")?.getBoundingClientRect();
+      const box = svg.getBoundingClientRect();
+      if (!heroShader || !hero?.width || !box.height) return null;
+      const from = { x: box.left + box.width * LETTERS_CENTRE.x, y: box.top + box.height * LETTERS_CENTRE.y };
+      const to = { x: hero.left + hero.width / 2, y: hero.top + hero.height / 2 };
+      // Scale at which the pill's opening contains the whole viewport, from either end of the move
+      const farthestCorner = Math.max(
+        ...[from, to].map(({ x, y }) => Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))),
+      );
+      return {
+        dx: to.x - from.x,
+        dy: to.y - from.y,
+        scale: (Math.min(hero.height, hero.width / HERO_ASPECT) * HERO_GLYPH_SHARE) / (box.height * LETTERS_HEIGHT),
+        ringScale: (1.05 * farthestCorner) / ((RING_INNER_RADIUS / 20) * box.height),
+      };
+    };
+
+    // Once the grow ends the ring's opening covers the viewport and the black is gone, so the overlay goes and
+    // the page unlocks then, without waiting for the header and text springs to settle their last pixels
+    let unlocked = false;
+    const unlock = () => {
+      if (unlocked) return;
+      unlocked = true;
+      heroShader?.style.removeProperty("transform");
+      intro.remove();
+      document.documentElement.classList.remove("has-intro");
+    };
+
+    const growP = motionValue(0);
+    growP.on("change", (p) => {
+      if (grow === undefined) {
+        grow = measureGrow();
+        // The knob's solid centre only covers seams while it moves; fading it would show a disc
+        intro.querySelector(".intro-knob-core")?.remove();
+        // From here the ring layer provides the ground: solid outside the pill, a fading fill inside
+        intro.style.backgroundColor = "transparent";
+      }
+      if (grow) {
+        const markScale = 1 + (grow.scale - 1) * p;
+        const translate = `translate(${grow.dx * p}px, ${grow.dy * p}px)`;
+        svg.style.transform = `${translate} scale(${markScale})`;
+        // The letters' scale times an exponential extra zoom out to the covering size: one smooth curve, so the
+        // ring never changes speed partway, and it never falls behind the letters
+        const ringExtra = Math.max(grow.ringScale / grow.scale, 1) ** clamp01(p);
+        ring.style.transform = `${translate} scale(${markScale * ringExtra})`;
+        heroShader!.style.transform = `translate(${-grow.dx * (1 - p)}px, ${-grow.dy * (1 - p)}px) scale(${markScale / grow.scale})`;
+      }
+      const dark = String(1 - smoothstep(clamp01(p)));
+      inside.style.opacity = dark;
+      svg.style.opacity = dark;
+      if (p >= 1) unlock();
+    });
+
+    const switched = SWITCH_AT + SWITCH_DURATION;
+    const growAt = switched + GROW_AFTER_SWITCH;
+    const slideFrom = {
+      header: header ? -header.getBoundingClientRect().bottom - 12 : 0,
+      text: heroText ? Math.max(innerHeight - heroText.getBoundingClientRect().top, 0) + 24 : 0,
+    };
+
+    let timeline: ReturnType<typeof animate> | undefined;
+    const start = () => {
+      const introTimeline = animate(
+        [
+          [scaleIn, [0, 1], { duration: SCALE_IN, ease: introEase, at: 0 }],
+          [knobX, [KNOB_TRAVEL, 0], { duration: SWITCH_DURATION, ease: cubicInOut, at: SWITCH_AT }],
+          [growP, [0, 1], { duration: GROW_DURATION, ease: introEase, at: growAt }],
+          ...(header ? [[header, { y: [slideFrom.header, 0] }, { ...slideSpring, at: growAt + SLIDE_STAGGER.header }] as const] : []),
+          ...(heroText ? [[heroText, { y: [slideFrom.text, 0] }, { ...slideSpring, at: growAt + SLIDE_STAGGER.text }] as const] : []),
+        ],
+        { reduceMotion: false },
+      );
+      introTimeline.speed = SPEED / TEMPO;
+      timeline = introTimeline;
+
+      introTimeline.then(() => {
+        unlock();
+        header?.style.removeProperty("transform");
+        heroText?.style.removeProperty("transform");
+      });
+
+      // Scheduled from the start, since the timeline only ends once the text spring rests. Intro seconds run
+      // TEMPO times slower than the push's, so they're converted to the push's clock.
+      const textLanded = (growAt + SLIDE_STAGGER.text + TEXT_LANDED_AFTER) * TEMPO;
+      pushTitle(textLanded + TITLE_PUSH_DELAY_AFTER_INTRO);
+    };
+
+    // The /intro preview page changes the speed live
+    addEventListener("message", ({ data, origin }) => {
+      if (origin === location.origin && data?.type === "intro-speed" && typeof data.speed === "number" && timeline) timeline.speed = data.speed / TEMPO;
+    });
+
+    // The hero shader's setup (image processing, shader compile) blocks the main thread for a while, longest in
+    // Safari. The timeline runs on the clock, so if that lands during the scale-in, its frames are dropped and the
+    // mark just appears. So the black holds until the shader is set up (or SHADER_WAIT at most), then two frames
+    // more for its first draw, before anything moves.
+    const SHADER_WAIT = 2000; // ms
+    new Promise<void>((resolve) => {
+      if (!heroShader || "ready" in heroShader.dataset) return resolve();
+      heroShader.addEventListener("liquid-metal-ready", () => resolve(), { once: true });
+      setTimeout(resolve, SHADER_WAIT);
+    }).then(() => requestAnimationFrame(() => requestAnimationFrame(start)));
+  } else {
+    pushTitle(TITLE_PUSH_DELAY);
+  }
+</script>
+
+<style>
+  .intro {
+    /* White mark on a black ground */
+    --intro-ground: #000;
+    --intro-ink: #fff;
+    display: none;
+  }
+
+  :global(html.has-intro) .intro {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    background: var(--intro-ground);
+  }
+
+  /* Until the title push, the first line sits in the second's place and the second's words wait below its clip */
+  :global(html.title-push .hero-title-line:not(.hero-title-reveal)) {
+    transform: translateY(100%);
+  }
+
+  :global(html.title-push .hero-title-word) {
+    transform: translateY(120%);
+  }
+
+  /* Keeps the page from scrolling under the overlay */
+  :global(html.has-intro) {
+    overflow: hidden;
+  }
+
+  .intro-mark {
+    display: grid;
+  }
+
+  /* Scaled in by the script; the knob and letters are hidden by the clip that follows it */
+  .intro-ring {
+    transform: scale(0);
+  }
+
+  /* The ring's transform lifts it above unpositioned siblings; this keeps the logo painted on top of it */
+  .intro-logo {
+    position: relative;
+  }
+
+  .intro svg {
+    grid-area: 1 / 1;
+    display: block;
+    /* Centre of the "Off" letters, so the mark scales around the same point as the hero logo */
+    transform-origin: 46.53% 50%;
+    width: auto;
+    height: 32px;
+    overflow: visible;
+  }
+
+  .intro-shape {
+    fill: var(--intro-ink);
+  }
+
+  .intro-outside,
+  .intro-inside,
+  /* Solid centre in the ground colour, so the knob's edge never shows through the O */
+  .intro-knob-core {
+    fill: var(--intro-ground);
+  }
+</style>

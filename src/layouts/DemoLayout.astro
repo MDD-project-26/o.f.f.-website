@@ -1,0 +1,595 @@
+---
+// Shared shell for the demo pages: the dark header, the password gate and, once unlocked, the page's content
+// followed by the footer. For now any password unlocks it; the swap happens in the browser (see the scripts).
+// The header is the homepage's header in its dark state, without the scroll-driven tab indicator.
+import logoMarkLight from "../assets/logo-mark-light.svg";
+import logoFreedomLight from "../assets/logo-freedom-light.svg";
+import logoForLight from "../assets/logo-for-light.svg";
+import logoOptimizingLight from "../assets/logo-optimizing-light.svg";
+import footerOptimizing from "../assets/footer-optimizing.svg";
+import footerFor from "../assets/footer-for.svg";
+import footerFreedom from "../assets/footer-freedom.svg";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Enter the password to see the o.f.f. demo." } = Astro.props;
+
+const navLinks = [
+  { label: "Problem", href: "/#problem" },
+  { label: "Product", href: "/#product" },
+  { label: "Demo", href: "/#demo" },
+  { label: "Vision", href: "/#vision" },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="preload" href="/fonts/Aspekta-550.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/ABCAreal-Medium.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Already unlocked this browser session: show the content from first paint, without the gate flashing -->
+    <script is:inline>
+      try {
+        if (sessionStorage.getItem("off-demo-unlocked")) document.documentElement.classList.add("is-unlocked");
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="o.f.f. — optimizing for freedom">
+        <span class="brand-mark">
+          <img src={logoMarkLight.src} width={logoMarkLight.width} height={logoMarkLight.height} alt="" />
+        </span>
+        <span class="brand-wordmark">
+          <img class="wm-optimizing" src={logoOptimizingLight.src} width={logoOptimizingLight.width} height={logoOptimizingLight.height} alt="" />
+          <img class="wm-for" src={logoForLight.src} width={logoForLight.width} height={logoForLight.height} alt="" />
+          <img class="wm-freedom" src={logoFreedomLight.src} width={logoFreedomLight.width} height={logoFreedomLight.height} alt="" />
+        </span>
+      </a>
+
+      <nav class="site-nav" aria-label="Main">
+        <ul class="nav-links">
+          {
+            navLinks.map((link) => (
+              <li>
+                <a href={link.href}>{link.label}</a>
+              </li>
+            ))
+          }
+        </ul>
+        <a class="button-solid" href="/#contact">Contact</a>
+      </nav>
+    </header>
+
+    <main class="gate">
+      <h1 class="gate-title">See the demo</h1>
+
+      <form class="gate-form">
+        <label class="gate-label" for="demo-password">Password</label>
+        <div class="gate-field">
+          <input
+            class="gate-input"
+            id="demo-password"
+            name="password"
+            type="password"
+            placeholder="Enter password"
+            autocomplete="current-password"
+            required
+          />
+          <button class="button-pill" type="submit">Enter <span aria-hidden="true">→</span></button>
+        </div>
+      </form>
+
+      <p class="gate-copy">
+        You want to put your phone away, but someone might need you. So you check it. While you’re there, you open
+        something else.
+      </p>
+    </main>
+
+    <div class="unlocked">
+      <slot />
+
+      <footer class="site-footer">
+        <!-- Handwritten "optimizing for freedom", placed as in the 1480 × 248 Figma frame -->
+        <div class="footer-handwriting" role="img" aria-label="optimizing for freedom">
+          <img class="footer-word-optimizing" src={footerOptimizing.src} width={footerOptimizing.width} height={footerOptimizing.height} alt="" />
+          <img class="footer-word-for" src={footerFor.src} width={footerFor.width} height={footerFor.height} alt="" />
+          <img class="footer-word-freedom" src={footerFreedom.src} width={footerFreedom.width} height={footerFreedom.height} alt="" />
+        </div>
+
+        <div class="footer-bar">
+          <p>© 2026 Off</p>
+          <p class="footer-tagline">Optimizing For Freedom</p>
+          <p class="footer-credit">Designed by <span class="footer-credit-name">LORE</span></p>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      // Any password unlocks the demo for now. Remembered for the browser session (read again by the inline script
+      // in <head>) so a reload or another demo page stays unlocked. The form never submits, so the password doesn't
+      // end up in the URL. Focus moves to the page's [data-unlock-focus] element (its title).
+      document.querySelector<HTMLFormElement>(".gate-form")?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        try {
+          sessionStorage.setItem("off-demo-unlocked", "1");
+        } catch {}
+        document.documentElement.classList.add("is-unlocked");
+        window.scrollTo(0, 0);
+        document.querySelector<HTMLElement>("[data-unlock-focus]")?.focus();
+      });
+    </script>
+  </body>
+</html>
+<style is:global>
+  @font-face {
+    font-family: "ABC Areal";
+    src: url("/fonts/ABCAreal-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: "ABC Areal";
+    src: url("/fonts/ABCAreal-Medium.woff2") format("woff2");
+    font-weight: 500;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: "ABC Areal Mono";
+    src: url("/fonts/ABCArealMono-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: "ABC Areal Mono";
+    src: url("/fonts/ABCArealMono-Medium.woff2") format("woff2");
+    font-weight: 500;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: "Aspekta";
+    src: url("/fonts/Aspekta-550.woff2") format("woff2");
+    font-weight: 550;
+    font-display: swap;
+  }
+
+  :root {
+    --color-on-dark: #f5f5f5;
+    --color-on-dark-muted: rgb(245 245 245 / 0.5);
+    --color-glass-dark: rgb(241 241 241 / 0.1);
+    --font-title: "Aspekta", system-ui, sans-serif;
+    --font-label: "ABC Areal Mono", ui-monospace, monospace;
+    --font-ui: "ABC Areal", system-ui, sans-serif;
+    --color-on-dark-faint: rgb(245 245 245 / 0.3);
+    --color-hairline-dark: rgb(245 245 245 / 0.2);
+    --header-inset: 12px;
+    --radius-pill: 9999px;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    background: #000;
+    color: var(--color-on-dark);
+    font-family: var(--font-ui);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Light pill button with dark text (Enter, Read more), used by the pages too */
+  .button-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 20px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: var(--color-on-dark);
+    color: #212122;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .button-pill:focus-visible {
+    outline: 2px solid var(--color-on-dark);
+    outline-offset: 2px;
+  }
+
+  /* Press and hover feedback, as on the homepage */
+  .button-pill {
+    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .button-pill:active {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .button-pill:hover {
+      transform: scale(1.03);
+      transition-duration: 300ms;
+    }
+
+    .button-pill:hover:active {
+      transform: scale(0.99);
+      transition-duration: 160ms;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .button-pill:active {
+      transform: none;
+    }
+  }
+
+  @media (hover: hover) {
+    .button-pill:hover {
+      background: #fff;
+    }
+  }
+</style>
+
+<style>
+  /* Header: same geometry as the homepage's, in its dark state */
+  .site-header {
+    position: fixed;
+    inset: var(--header-inset) var(--header-inset) auto;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px 10px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--color-glass-dark);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .brand-mark {
+    display: block;
+    width: 31px;
+    height: 20px;
+    padding: 0 0.3px;
+    box-sizing: border-box;
+  }
+
+  .brand-mark img {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .brand-wordmark {
+    position: relative;
+    display: block;
+    width: 120px;
+    height: 20px;
+  }
+
+  .brand-wordmark img {
+    position: absolute;
+    display: block;
+  }
+
+  .wm-optimizing {
+    inset: 15.84% 56.33% -0.01% 0.44%;
+    width: 43.23%;
+    height: 84.17%;
+  }
+
+  .wm-for {
+    inset: 4.96% 38.73% 20.51% 47.56%;
+    width: 13.71%;
+    height: 74.53%;
+  }
+
+  .wm-freedom {
+    inset: 4.8% -0.02% 6.34% 62.59%;
+    width: 37.43%;
+    height: 88.86%;
+  }
+
+  .site-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 1.5px;
+    list-style: none;
+    border-radius: var(--radius-pill);
+    background: var(--color-glass-dark);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+
+  .nav-links a {
+    display: block;
+    padding: 13px 20px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-label);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    text-transform: uppercase;
+    color: var(--color-on-dark-muted);
+  }
+
+  .button-solid {
+    display: inline-flex;
+    padding: 14px 20px;
+    border-radius: var(--radius-pill);
+    background: var(--color-on-dark);
+    color: #212122;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  /* Password gate: title, field and copy as one group, centred in the viewport */
+  .gate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 100vh;
+    min-height: 100svh;
+    padding: 80px 16px;
+    text-align: center;
+  }
+
+  .gate-title {
+    margin: 0;
+    font-family: var(--font-title);
+    font-size: 48px;
+    font-weight: 550;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .gate-form {
+    display: flex;
+    flex-direction: column;
+    width: min(488px, 100%);
+    margin-top: 72px;
+    text-align: left;
+  }
+
+  .gate-label {
+    padding: 0 0 8px 20px;
+    font-family: var(--font-label);
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .gate-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2.5px 2.5px 2.5px 21px;
+    border: 1px solid rgb(255 255 255 / 0.04);
+    border-radius: var(--radius-pill);
+    background: var(--color-glass-dark);
+    transition: border-color 0.2s ease;
+  }
+
+  .gate-field:focus-within {
+    border-color: rgb(255 255 255 / 0.24);
+  }
+
+  .gate-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: none;
+    color: var(--color-on-dark);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .gate-input::placeholder {
+    color: var(--color-on-dark-muted);
+    opacity: 1;
+  }
+
+  .gate-copy {
+    max-width: 364px;
+    margin: 60px 0 0;
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  /* Gate until a password is entered, then the updates (html.is-unlocked, set by the scripts) */
+  :global(html.is-unlocked) .gate,
+  :global(html:not(.is-unlocked)) .unlocked {
+    display: none;
+  }
+
+  /* At least a full viewport tall, so the footer always sits at the bottom of the screen */
+  .unlocked {
+    display: flex;
+    flex-direction: column;
+    /* Content that runs out to the window's edge (the gallery) never adds a horizontal scrollbar */
+    overflow-x: clip;
+    min-height: 100vh;
+    min-height: 100svh;
+  }
+
+  /* Footer: the handwritten line and the bottom bar, as on the homepage */
+  .site-footer {
+    margin-top: auto;
+    padding: 16px;
+  }
+
+  .footer-handwriting {
+    position: relative;
+    max-width: 1480px;
+    aspect-ratio: 1480 / 248;
+    margin: 0 auto;
+  }
+
+  /* Insets as percentages of the 1480 × 248 frame; each SVG keeps its own aspect ratio */
+  .footer-handwriting img {
+    position: absolute;
+    display: block;
+    height: auto;
+  }
+
+  .footer-word-optimizing {
+    top: 15.84%;
+    left: 0.44%;
+    width: 43.23%;
+  }
+
+  .footer-word-for {
+    top: 4.96%;
+    left: 47.56%;
+    width: 13.71%;
+  }
+
+  .footer-word-freedom {
+    top: 4.8%;
+    left: 62.59%;
+    width: 37.43%;
+  }
+
+  .footer-bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    margin-top: 48px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .footer-bar p {
+    margin: 0;
+  }
+
+  .footer-tagline {
+    font-feature-settings: "case";
+  }
+
+  .footer-credit {
+    justify-self: end;
+  }
+
+  .footer-credit-name {
+    text-decoration: underline;
+    text-underline-position: from-font;
+  }
+
+  /* Press and hover feedback, as on the homepage */
+  .nav-links a,
+  .button-solid {
+    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .nav-links a:active,
+  .button-solid:active {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .nav-links a:hover,
+    .button-solid:hover {
+      transform: scale(1.03);
+      transition-duration: 300ms;
+    }
+
+    .nav-links a:hover:active,
+    .button-solid:hover:active {
+      transform: scale(0.99);
+      transition-duration: 160ms;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nav-links a:active,
+    .button-solid:active {
+      transform: none;
+    }
+  }
+
+  @media (hover: hover) {
+    .nav-links a:hover {
+      color: var(--color-on-dark);
+    }
+
+    .button-solid:hover {
+      background: #fff;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .nav-links {
+      display: none;
+    }
+
+    .gate-title {
+      font-size: 40px;
+    }
+
+    .gate-form {
+      margin-top: 48px;
+    }
+
+    .gate-copy {
+      margin-top: 48px;
+    }
+
+    .footer-bar {
+      grid-template-columns: 1fr 1fr;
+      row-gap: 12px;
+    }
+
+    .footer-tagline {
+      grid-column: 1 / -1;
+      grid-row: 1;
+    }
+  }
+</style>

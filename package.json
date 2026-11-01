@@ -10,14 +10,15 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "pnpm build && wrangler dev",
+    "preview": "pnpm build && wrangler dev --ip 0.0.0.0",
     "deploy": "pnpm build && wrangler deploy",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.2",
     "@paper-design/shaders": "^0.0.82",
-    "astro": "^7.4.2"
+    "astro": "^7.4.2",
+    "motion": "^14.7.1"
   },
   "devDependencies": {
     "wrangler": "^4.154.0"

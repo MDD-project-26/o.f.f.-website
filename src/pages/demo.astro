@@ -1,0 +1,396 @@
+---
+// The demo's list of updates, behind the password gate (see DemoLayout). Opened from the homepage's
+// "See the demo" button. Each row opens that update's page.
+import DemoLayout from "../layouts/DemoLayout.astro";
+import { Image } from "astro:assets";
+import { updates, updateHref } from "../data/updates";
+import previewRender from "../assets/off-render-03.png";
+---
+
+<DemoLayout title="Demo · o.f.f.">
+  <main class="updates">
+    <div class="updates-intro">
+      <h1 class="updates-title" tabindex="-1" data-unlock-focus>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</h1>
+      <p class="updates-copy">
+        You want to put your phone away, but someone might need you. So you check it. While you’re there, you open
+        something else.
+      </p>
+    </div>
+
+    <table class="updates-table">
+      <thead>
+        <tr class="update-row update-head">
+          <th scope="col">Date</th>
+          <th scope="col">Name</th>
+          <th scope="col">Ver.</th>
+        </tr>
+      </thead>
+      <tbody class="update-rows">
+        {
+          updates.map((update) => (
+            <tr class:list={["update-row", { "is-featured": update.featured }]}>
+              <td>{update.date}</td>
+              <td>
+                <!-- Stretched over the whole row, so clicking anywhere on it opens the update -->
+                <a class="update-link" href={updateHref(update)}>{update.name}</a>
+              </td>
+              <td>{update.version}</td>
+              <!-- Every row has its preview and Read more; only the open row shows them (see the script) -->
+              <td class="update-details">
+                <Image class="update-preview" src={previewRender} alt="" widths={[128, 256]} sizes="128px" />
+                <a class="button-pill" href={updateHref(update)} tabindex="-1" aria-hidden="true">
+                  Read more <span>→</span>
+                </a>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </main>
+</DemoLayout>
+
+<script>
+  // At most one row is open: the one under the mouse (or, with the keyboard, the focused one). Moving to another
+  // row opens it and closes the one that was open; leaving the list closes it. (Touch screens have no hover, so
+  // there the featured row stays open instead, from the CSS.)
+  //
+  // Hover is tracked here rather than with :hover or pointerenter, because browsers don't update those when the
+  // page scrolls under a still cursor (Safari waits for the mouse to move). The script remembers where the mouse
+  // is and, on every move and every scroll, finds the row under it: that row opens and gets .is-hovered (the fill).
+  //
+  // The heights come from CSS (.is-open). The script animates every row that has to move with one shared timing:
+  // each goes from where it is now to its new height on the same curve, so whatever one row gains, the others
+  // lose in the same frame and the rows below the list don't move as the pointer goes from row to row, even
+  // across several rows while they're still moving. Only leaving the list shortens it.
+  const list = document.querySelector<HTMLElement>(".update-rows");
+  const rows = list ? [...list.querySelectorAll<HTMLElement>(".update-row")] : [];
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  const DURATION = 250;
+  const EASING = "cubic-bezier(0.23, 1, 0.32, 1)";
+
+  // Opens the target row and closes the others; null closes them all
+  const open = (target: HTMLElement | null) => {
+    const current = rows.find((row) => row.classList.contains("is-open")) ?? null;
+    if (target === current) return;
+
+    if (reducedMotion.matches) {
+      rows.forEach((row) => row.classList.toggle("is-open", row === target));
+      return;
+    }
+
+    // Where every row is right now, mid-animation or not
+    const from = rows.map((row) => row.getBoundingClientRect().height);
+    rows.forEach((row) => {
+      row.getAnimations().forEach((animation) => {
+        if (animation instanceof CSSTransition) return; // the preview's slide
+        animation.cancel();
+      });
+      row.classList.toggle("is-open", row === target);
+    });
+
+    rows.forEach((row, index) => {
+      const to = row.getBoundingClientRect().height;
+      if (Math.abs(to - from[index]) < 0.5) return;
+      row.animate([{ height: `${from[index]}px` }, { height: `${to}px` }], { duration: DURATION, easing: EASING });
+    });
+  };
+
+  let pointer: { x: number; y: number } | null = null;
+  let hovered: HTMLElement | null = null;
+  let frame = 0;
+
+  // The row holding keyboard focus, if any
+  const focusedRow = () => {
+    const row = document.activeElement?.closest<HTMLElement>(".update-row") ?? null;
+    return row && list?.contains(row) ? row : null;
+  };
+
+  const syncHover = () => {
+    frame = 0;
+    const under = pointer ? document.elementFromPoint(pointer.x, pointer.y) : null;
+    const row = under?.closest<HTMLElement>(".update-row") ?? null;
+    const next = row && list?.contains(row) ? row : null;
+    if (next === hovered) return;
+    hovered?.classList.remove("is-hovered");
+    next?.classList.add("is-hovered");
+    hovered = next;
+    open(next ?? focusedRow());
+  };
+
+  const scheduleSync = () => {
+    if (pointer && !frame) frame = requestAnimationFrame(syncHover);
+  };
+
+  window.addEventListener(
+    "pointermove",
+    (event) => {
+      if (event.pointerType !== "mouse") return;
+      pointer = { x: event.clientX, y: event.clientY };
+      scheduleSync();
+    },
+    { passive: true },
+  );
+
+  window.addEventListener("scroll", scheduleSync, { passive: true });
+
+  // The mouse left the window
+  document.addEventListener("pointerout", (event) => {
+    if (event.relatedTarget || event.pointerType !== "mouse") return;
+    pointer = null;
+    cancelAnimationFrame(frame);
+    syncHover();
+  });
+
+  rows.forEach((row) => row.addEventListener("focusin", () => open(row)));
+
+  // Focus left the list: back to the row under the mouse, or none
+  list?.addEventListener("focusout", (event) => {
+    if (event.relatedTarget instanceof Node && list.contains(event.relatedTarget)) return;
+    open(hovered);
+  });
+</script>
+
+<style>
+  /* Updates: a 12-column grid (8px gaps) across the 16px gutters, as in the 1512px design */
+  .updates {
+    --columns: repeat(12, minmax(0, 1fr));
+    /* The bottom padding is the least space left above the footer */
+    padding: 140px 16px 159px;
+  }
+
+  .updates-intro {
+    display: grid;
+    grid-template-columns: var(--columns);
+    gap: 8px;
+    align-items: end;
+  }
+
+  .updates-title {
+    grid-column: 1 / span 4;
+    margin: 0;
+    font-family: var(--font-title);
+    font-size: 48px;
+    font-weight: 550;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-feature-settings: "ss02";
+    outline: none;
+  }
+
+  .updates-copy {
+    grid-column: 7 / span 3;
+    max-width: 364px;
+    margin: 0 0 2px;
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  /* The table runs into the page's 16px gutters, so the hairlines and the hover fill reach the window's edges;
+     the rows pad their content back in by the same 16px, so it lines up with the intro above */
+  .updates-table {
+    width: calc(100% + 32px);
+    margin: 80px -16px 0;
+    border-collapse: collapse;
+    font-family: var(--font-label);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+
+  .updates-table thead,
+  .updates-table tbody {
+    display: block;
+  }
+
+  /* Each row is its own grid: date (2 columns), name (5), version (2), then the preview and Read more */
+  .update-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--columns);
+    gap: 8px;
+    align-items: center;
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 12px 16px;
+    border-bottom: 0.5px solid var(--color-hairline-dark);
+  }
+
+  /* Rows have fixed heights, closed (one line) or open (the 128px preview between the 12px paddings). The script
+     animates between them; the text stays centred as the row grows, and the preview is clipped until it's open. */
+  .update-rows .update-row {
+    --row-height: 42px;
+    --row-height-open: 152px;
+    height: var(--row-height);
+    overflow: hidden;
+  }
+
+  .update-rows .update-row.is-open {
+    height: var(--row-height-open);
+  }
+
+  .update-row > :is(th, td) {
+    padding: 0;
+    font-weight: inherit;
+    text-align: left;
+  }
+
+  .update-row > :nth-child(1) {
+    grid-column: 1 / span 2;
+  }
+
+  .update-row > :nth-child(2) {
+    grid-column: 3 / span 5;
+  }
+
+  .update-row > :nth-child(3) {
+    grid-column: 8 / span 2;
+  }
+
+  .update-head {
+    min-height: 0;
+    padding: 0 16px 8px;
+    color: var(--color-on-dark-faint);
+  }
+
+  /* Out of the flow so the text keeps the row's height; still placed on columns 10–12, held to the row's bottom.
+     Closed, it waits just below the row's edge; opening, it rises out of the bottom as the row grows. */
+  .update-row > .update-details {
+    position: absolute;
+    grid-column: 10 / -1;
+    bottom: 12px;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    text-transform: none;
+    transform: translateY(calc(100% + 12px));
+    transition: transform 250ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .update-row.is-open > .update-details {
+    transform: none;
+  }
+
+  /* No hover on touch screens: the featured row stays open there, as in the design */
+  @media (hover: none) {
+    .update-rows .update-row.is-featured {
+      height: var(--row-height-open);
+    }
+
+    .update-row.is-featured > .update-details {
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .update-row > .update-details {
+      transition: none;
+    }
+  }
+
+  .update-preview {
+    display: block;
+    width: 128px;
+    height: auto;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 12px;
+    background: rgb(255 255 255 / 0.1);
+    /* Hairline stroke over the image's edge, following its rounded corners */
+    outline: 0.5px solid rgb(245 245 245 / 0.1);
+    outline-offset: -0.5px;
+  }
+
+  .update-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .update-link:focus-visible {
+    outline: none;
+  }
+
+  .update-link:focus-visible::after {
+    outline: 1px solid var(--color-on-dark);
+    outline-offset: -1px;
+  }
+
+  /* Read more sits above the stretched link */
+  .update-details .button-pill {
+    position: relative;
+  }
+
+  /* The row under the mouse (.is-hovered, set by the script, also while scrolling) gets a faint fill and its
+     text goes from #f5f5f5 to white; the hairlines stay as they are */
+  .update-rows .update-row.is-hovered {
+    background-color: rgb(255 255 255 / 0.05);
+    color: #fff;
+  }
+
+  @media (max-width: 720px) {
+    .updates {
+      padding-top: 104px;
+      padding-bottom: 120px;
+    }
+
+    .updates-intro {
+      gap: 24px;
+    }
+
+    .updates-title {
+      grid-column: 1 / -1;
+      font-size: 40px;
+    }
+
+    .updates-copy {
+      grid-column: 1 / -1;
+    }
+
+    .updates-table {
+      margin-top: 56px;
+    }
+
+    /* Date and version on one line, the name under them, then the preview and Read more */
+    .update-row {
+      grid-template-columns: 1fr auto;
+      row-gap: 4px;
+    }
+
+    /* Two lines of text (18px each, 4px apart), then 8px and the preview */
+    .update-rows .update-row {
+      --row-height: 64px;
+      --row-height-open: 200px;
+      align-content: start;
+    }
+
+    .update-row > :nth-child(1) {
+      grid-column: 1;
+    }
+
+    .update-row > :nth-child(2) {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    .update-row > :nth-child(3) {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .update-head > :nth-child(2) {
+      display: none;
+    }
+
+    .update-row > .update-details {
+      grid-column: 1 / -1;
+    }
+  }
+</style>
