@@ -41,19 +41,50 @@ export function mountOrbit(stage: HTMLElement, reduceMotion: boolean) {
   let width = 0;
   let height = 0;
   let tileSize = 0;
+  // Half-diagonal of the centred copy (title, lede, button), so a circular ring can be sized to clear it
+  let clearance = 0;
+  const intro = stage.querySelector<HTMLElement>(".demo-intro");
   const measure = () => {
     width = stage.clientWidth;
     height = stage.clientHeight;
     tileSize = elements[0]?.offsetWidth ?? 0;
+    clearance = 0;
+    if (intro) {
+      // The children's own boxes, not the intro's (it's as wide as the screen on phones)
+      let halfW = 0;
+      let halfH = intro.offsetHeight / 2;
+      for (const child of intro.children) {
+        const range = document.createRange();
+        range.selectNodeContents(child);
+        halfW = Math.max(halfW, range.getBoundingClientRect().width / 2);
+      }
+      clearance = Math.hypot(halfW, halfH);
+    }
   };
 
+  let ringInset = -1;
   let spin = -Math.PI / 2; // start with the first tile at the top
   const place = () => {
     const cx = width / 2;
     const cy = height / 2;
     // Radii from the design: the ring spans 85% of the stage's width and 80% of its height
-    const rx = (width / 2) * 0.85;
-    const ry = (height / 2) * 0.8;
+    let rx = (width / 2) * 0.85;
+    let ry = (height / 2) * 0.8;
+    // On a tall, narrow stage (phones) that ellipse squeezes the sides onto the copy, so it becomes a circle
+    // just wide enough that no resting tile overlaps the copy. It runs off the screen's sides a little; the
+    // section clips it.
+    if (width < height) {
+      const r = Math.min(clearance + tileSize * 1, height / 2 - tileSize / 2);
+      rx = r;
+      ry = r;
+    }
+    // The stage's empty band above (and below) the resting ring, so the CSS can pull the stage up and keep the
+    // section's rule a set distance from the ring's top rather than from the stage's
+    const inset = Math.max(0, cy - ry - tileSize / 2);
+    if (inset !== ringInset) {
+      ringInset = inset;
+      stage.style.setProperty("--ring-inset", `${inset.toFixed(1)}px`);
+    }
     for (const tile of tiles) {
       const a = tile.angle + spin;
       const r = 1 + tile.offset;

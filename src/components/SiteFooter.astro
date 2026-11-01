@@ -1,0 +1,314 @@
+---
+// The site's footer, shared by every page: the handwritten "optimizing for freedom", written out when it scrolls
+// into view, and the bottom bar. The homepage passes its CTA (mark, title and buttons) as the default slot; with a
+// CTA the footer is a full viewport tall and the CTA takes the room above the handwriting. Other attributes
+// (id, aria-labelledby) go on the <footer>.
+import footerOptimizing from "../assets/footer-optimizing.svg?raw";
+import footerFor from "../assets/footer-for.svg?raw";
+import footerFreedom from "../assets/footer-freedom.svg?raw";
+
+const attributes = Astro.props;
+const hasCta = Astro.slots.has("default");
+
+// Handwriting, inlined so the script can reveal each piece in turn. Figma's ids repeat across the three files and
+// its inline style is replaced by the CSS below, so both go.
+const handwriting = (svg: string, word: string) =>
+  svg
+    .replace(/ id="[^"]*"/g, "")
+    .replace(/ style="[^"]*"/, "")
+    .replace("<svg ", `<svg class="footer-word footer-word-${word}" aria-hidden="true" focusable="false" `);
+---
+
+<footer class:list={["site-footer", { "has-cta": hasCta }]} {...attributes}>
+  <slot />
+
+  <!-- Handwritten "optimizing for freedom": three SVGs placed as in the 1480 × 248 Figma frame, written out
+       piece by piece when the footer scrolls into view -->
+  <div class="footer-handwriting" role="img" aria-label="optimizing for freedom">
+    <Fragment set:html={handwriting(footerOptimizing, "optimizing")} />
+    <Fragment set:html={handwriting(footerFor, "for")} />
+    <Fragment set:html={handwriting(footerFreedom, "freedom")} />
+  </div>
+
+  <div class="footer-bar">
+    <div class="footer-bar-group">
+      <p class="footer-copyright">© 2026 _off</p>
+      <p class="footer-tagline">Optimizing For Freedom</p>
+    </div>
+    <!-- On phones these run together as one paragraph: the gray disclaimer, then the credit -->
+    <div class="footer-bar-group footer-bar-end">
+      <p class="footer-disclaimer">
+        Images and renders illustrate our product vision and do not represent the actual product.
+      </p>{" "}
+      <p class="footer-credit">Designed by <span class="footer-credit-name">LORE</span></p>
+    </div>
+  </div>
+</footer>
+
+<script>
+  import { animate } from "motion";
+
+  // The words are filled outlines, not strokes, so each piece (a letter or a run of joined letters) is uncovered
+  // left to right by a mask with a soft leading edge, like ink following the pen. Pieces go in reading order at one
+  // pen speed, each starting just before the last one ends, with a short pause between words. It starts once, when
+  // the words are well into view; with reduced motion they just show.
+  const handwriting = document.querySelector<HTMLElement>(".footer-handwriting");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const SPEED = 50000; // pen speed, in SVG units per second (the three files share one scale)
+  const FEATHER = 28; // width of the soft leading edge, in SVG units
+  const PAD = 4; // margin around each piece so antialiased edges aren't clipped
+  const OVERLAP = 0.3; // share of a piece left to go when the next one starts
+  const WORD_PAUSE = 0.03; // seconds between words
+
+  type Stroke = { band: SVGGElement; path: SVGPathElement; distance: number };
+
+  // Masks every piece, hiding it until it's written. Needs the words laid out, since it measures them.
+  const prepare = (container: HTMLElement) => {
+    const words: Stroke[][] = [];
+    let maskId = 0;
+
+    container.querySelectorAll<SVGSVGElement>("svg").forEach((svg) => {
+      const defs = svg.insertBefore(document.createElementNS(SVG_NS, "defs"), svg.firstChild);
+      const strokes = [...svg.querySelectorAll<SVGPathElement>("path")]
+        .map((path) => ({ path, box: path.getBBox() }))
+        .sort((a, b) => a.box.x - b.box.x)
+        .map(({ path, box }) => {
+          const id = `handwriting-${maskId++}`;
+          const width = box.width + 2 * PAD + FEATHER; // solid part, wide enough to cover the piece at the end
+          const top = box.y - PAD;
+          const height = box.height + 2 * PAD;
+          const mask = document.createElementNS(SVG_NS, "mask");
+          mask.id = id;
+          mask.setAttribute("maskUnits", "userSpaceOnUse");
+          mask.innerHTML = `
+            <linearGradient id="${id}-edge"><stop offset="0" stop-color="#fff" /><stop offset="1" stop-color="#fff" stop-opacity="0" /></linearGradient>
+            <g transform="translate(${-FEATHER} 0)">
+              <rect x="${box.x - width}" y="${top}" width="${width}" height="${height}" fill="#fff" />
+              <rect x="${box.x}" y="${top}" width="${FEATHER}" height="${height}" fill="url(#${id}-edge)" />
+            </g>`;
+          defs.append(mask);
+          path.setAttribute("mask", `url(#${id})`);
+          return { band: mask.querySelector("g")!, path, distance: box.width + 2 * PAD + FEATHER };
+        });
+      words.push(strokes);
+    });
+
+    return words;
+  };
+
+  const write = (words: Stroke[][]) => {
+    let at = 0;
+    words.forEach((strokes, index) => {
+      if (index > 0) at += WORD_PAUSE;
+      strokes.forEach(({ band, path, distance }, i) => {
+        const duration = Math.max(distance / SPEED, 0.04);
+        animate(-FEATHER, distance - FEATHER, {
+          delay: at,
+          duration,
+          ease: [0.4, 0, 0.6, 1],
+          onUpdate: (x) => band.setAttribute("transform", `translate(${x} 0)`),
+          onComplete: () => path.removeAttribute("mask"),
+        });
+        at += i === strokes.length - 1 ? duration : duration * (1 - OVERLAP);
+      });
+    });
+  };
+
+  if (handwriting && !reduceMotion) {
+    // The masks are made once the words have a size: straight away on most pages, but the demo pages hide the
+    // footer behind the password gate until it's unlocked. Resize observations come after layout and before paint,
+    // so the words never show unmasked first.
+    const sized = new ResizeObserver(() => {
+      if (!handwriting.getClientRects().length || !handwriting.offsetWidth) return;
+      sized.disconnect();
+      const words = prepare(handwriting);
+
+      const inView = new IntersectionObserver(
+        ([entry]) => {
+          if (!entry.isIntersecting) return;
+          inView.disconnect();
+          write(words);
+        },
+        { threshold: 0.6 },
+      );
+      inView.observe(handwriting);
+    });
+    sized.observe(handwriting);
+  }
+</script>
+
+<style>
+  /* Black, the handwritten line and the bottom bar at the foot. With the homepage's CTA it's at least a full
+     viewport tall: lvh, not svh, since on phones the browser bars collapse by the time you reach the page's end,
+     and an svh-tall footer would then leave the section above showing at the top. */
+  .site-footer {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 16px;
+    background: #000;
+    color: #f5f5f5;
+  }
+
+  .site-footer.has-cta {
+    min-height: 100vh;
+    min-height: 100lvh;
+    padding-top: 0;
+  }
+
+  .site-footer :focus-visible {
+    outline-color: #f5f5f5;
+  }
+
+  /* Inside the footer's 16px side padding, lined up with the bottom bar */
+  .footer-handwriting {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1480 / 248;
+  }
+
+  /* Insets as percentages of the 1480 × 248 frame; each SVG keeps its own aspect ratio */
+  .footer-handwriting :global(.footer-word) {
+    position: absolute;
+    display: block;
+    height: auto;
+  }
+
+  .footer-handwriting :global(.footer-word-optimizing) {
+    top: 15.84%;
+    left: 0.44%;
+    width: 43.23%;
+  }
+
+  .footer-handwriting :global(.footer-word-for) {
+    top: 4.96%;
+    left: 47.56%;
+    width: 13.71%;
+  }
+
+  .footer-handwriting :global(.footer-word-freedom) {
+    top: 4.8%;
+    left: 62.59%;
+    width: 37.43%;
+  }
+
+  /* One row: copyright and tagline on the left, the disclaimer and credit on the right. On narrower screens the
+     disclaimer wraps (right-aligned) before anything else gives way. */
+  .footer-bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 32px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .footer-bar p {
+    margin: 0;
+  }
+
+  .footer-bar-group {
+    display: flex;
+    flex: none;
+    align-items: flex-end;
+    gap: 16px;
+    white-space: nowrap;
+  }
+
+  .footer-bar-end {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .footer-tagline {
+    font-feature-settings: "case";
+  }
+
+  .footer-disclaimer {
+    min-width: 0;
+    color: rgb(245 245 245 / 0.5);
+    text-align: right;
+    text-wrap: balance;
+    white-space: normal;
+  }
+
+  .footer-credit-name {
+    text-decoration: underline;
+    text-underline-position: from-font;
+  }
+
+  /* On phones the footer is a grid: the CTA (if any) centred in the room at the top, then the handwriting, and
+     below it the copyright (left) and tagline (right) on one row, then the disclaimer with the credit running on
+     after it as one paragraph. The bar and its first group dissolve (display: contents) so their texts can be
+     placed one by one; they still inherit the bar's type styles. The CTA places itself in the "cta" area. */
+  @media (max-width: 600px) {
+    .site-footer {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas:
+        "handwriting handwriting"
+        "copyright tagline"
+        "credit credit";
+    }
+
+    .site-footer.has-cta {
+      grid-template-rows: 1fr auto auto auto;
+      grid-template-areas:
+        "cta cta"
+        "handwriting handwriting"
+        "copyright tagline"
+        "credit credit";
+    }
+
+    .footer-bar,
+    .footer-bar-group:not(.footer-bar-end) {
+      display: contents;
+    }
+
+    .footer-handwriting {
+      grid-area: handwriting;
+    }
+
+    /* Through .footer-bar, to outrank its paragraphs' margin: 0. 24px below the handwriting, whose frame ends at
+       the foot of "optimizing". */
+    .footer-bar .footer-copyright,
+    .footer-bar .footer-tagline {
+      margin-top: 40px;
+    }
+
+    .footer-copyright {
+      grid-area: copyright;
+    }
+
+    .footer-tagline {
+      grid-area: tagline;
+      justify-self: end;
+    }
+
+    /* One paragraph: the gray disclaimer, then the white credit flowing on from it */
+    .footer-bar-end {
+      display: block;
+      grid-area: credit;
+      margin-top: 12px;
+      line-height: 1.3;
+      white-space: normal;
+    }
+
+    .footer-bar-end p {
+      display: inline;
+    }
+
+    .footer-credit {
+      white-space: nowrap;
+    }
+
+    .footer-disclaimer {
+      text-align: left;
+    }
+  }
+</style>

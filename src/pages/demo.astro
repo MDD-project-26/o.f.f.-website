@@ -347,7 +347,7 @@ import previewRender from "../assets/off-render-03.png";
 
     .updates-title {
       grid-column: 1 / -1;
-      font-size: 40px;
+      font-size: 32px;
     }
 
     .updates-copy {
@@ -361,10 +361,10 @@ import previewRender from "../assets/off-render-03.png";
     /* Date and version on one line, the name under them, then the preview and Read more */
     .update-row {
       grid-template-columns: 1fr auto;
-      row-gap: 4px;
+      row-gap: 8px;
     }
 
-    /* Two lines of text (18px each, 4px apart), then 8px and the preview */
+    /* Two lines of text (18px each, 8px apart), then 8px and the preview */
     .update-rows .update-row {
       --row-height: 64px;
       --row-height-open: 200px;
@@ -391,6 +391,29 @@ import previewRender from "../assets/off-render-03.png";
 
     .update-row > .update-details {
       grid-column: 1 / -1;
+    }
+
+    /* On phones every row stays open, so each one shows its preview and Read more. 6px shorter than the open
+       height above, which the text trim below takes out of the text, so the name stays 8px above the preview. */
+    .update-rows .update-row {
+      height: calc(var(--row-height-open) - 6px);
+    }
+
+    /* The 8px gap is between the letters themselves: the date and version are trimmed below their baseline, the
+       name above its capitals, so the line spacing doesn't add to it (browsers without text-box keep 8px between
+       the line boxes) */
+    .update-rows .update-row > :is(:nth-child(1), :nth-child(3)) {
+      text-box: trim-end cap alphabetic;
+    }
+
+    .update-rows .update-row > :nth-child(2) {
+      text-box: trim-start cap alphabetic;
+    }
+
+    /* Read more sits on the preview's bottom edge */
+    .update-row > .update-details {
+      align-items: flex-end;
+      transform: none;
     }
   }
 </style>

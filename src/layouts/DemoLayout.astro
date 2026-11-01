@@ -2,13 +2,11 @@
 // Shared shell for the demo pages: the dark header, the password gate and, once unlocked, the page's content
 // followed by the footer. For now any password unlocks it; the swap happens in the browser (see the scripts).
 // The header is the homepage's header in its dark state, without the scroll-driven tab indicator.
+import SiteFooter from "../components/SiteFooter.astro";
 import logoMarkLight from "../assets/logo-mark-light.svg";
 import logoFreedomLight from "../assets/logo-freedom-light.svg";
 import logoForLight from "../assets/logo-for-light.svg";
 import logoOptimizingLight from "../assets/logo-optimizing-light.svg";
-import footerOptimizing from "../assets/footer-optimizing.svg";
-import footerFor from "../assets/footer-for.svg";
-import footerFreedom from "../assets/footer-freedom.svg";
 
 interface Props {
   title: string;
@@ -97,20 +95,8 @@ const navLinks = [
     <div class="unlocked">
       <slot />
 
-      <footer class="site-footer">
-        <!-- Handwritten "optimizing for freedom", placed as in the 1480 × 248 Figma frame -->
-        <div class="footer-handwriting" role="img" aria-label="optimizing for freedom">
-          <img class="footer-word-optimizing" src={footerOptimizing.src} width={footerOptimizing.width} height={footerOptimizing.height} alt="" />
-          <img class="footer-word-for" src={footerFor.src} width={footerFor.width} height={footerFor.height} alt="" />
-          <img class="footer-word-freedom" src={footerFreedom.src} width={footerFreedom.width} height={footerFreedom.height} alt="" />
-        </div>
-
-        <div class="footer-bar">
-          <p>© 2026 Off</p>
-          <p class="footer-tagline">Optimizing For Freedom</p>
-          <p class="footer-credit">Designed by <span class="footer-credit-name">LORE</span></p>
-        </div>
-      </footer>
+      <!-- The homepage's footer, without its CTA -->
+      <SiteFooter />
     </div>
 
     <script>
@@ -199,7 +185,7 @@ const navLinks = [
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 14px 20px;
+    padding: 14px 21px;
     border: 0;
     border-radius: var(--radius-pill);
     background: var(--color-on-dark);
@@ -342,7 +328,7 @@ const navLinks = [
     border-radius: var(--radius-pill);
     font-family: var(--font-label);
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1;
     text-transform: uppercase;
     color: var(--color-on-dark-muted);
@@ -350,7 +336,7 @@ const navLinks = [
 
   .button-solid {
     display: inline-flex;
-    padding: 14px 20px;
+    padding: 14px 21px;
     border-radius: var(--radius-pill);
     background: var(--color-on-dark);
     color: #212122;
@@ -428,6 +414,13 @@ const navLinks = [
     line-height: 1;
   }
 
+  /* iOS Safari zooms the page into any focused field under 16px */
+  @media (pointer: coarse) {
+    .gate-input {
+      font-size: 16px;
+    }
+  }
+
   .gate-input::placeholder {
     color: var(--color-on-dark-muted);
     opacity: 1;
@@ -458,69 +451,9 @@ const navLinks = [
     min-height: 100svh;
   }
 
-  /* Footer: the handwritten line and the bottom bar, as on the homepage */
-  .site-footer {
+  /* The footer (src/components/SiteFooter.astro) sits at the bottom of the screen on short pages */
+  .unlocked > :global(.site-footer) {
     margin-top: auto;
-    padding: 16px;
-  }
-
-  .footer-handwriting {
-    position: relative;
-    max-width: 1480px;
-    aspect-ratio: 1480 / 248;
-    margin: 0 auto;
-  }
-
-  /* Insets as percentages of the 1480 × 248 frame; each SVG keeps its own aspect ratio */
-  .footer-handwriting img {
-    position: absolute;
-    display: block;
-    height: auto;
-  }
-
-  .footer-word-optimizing {
-    top: 15.84%;
-    left: 0.44%;
-    width: 43.23%;
-  }
-
-  .footer-word-for {
-    top: 4.96%;
-    left: 47.56%;
-    width: 13.71%;
-  }
-
-  .footer-word-freedom {
-    top: 4.8%;
-    left: 62.59%;
-    width: 37.43%;
-  }
-
-  .footer-bar {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 16px;
-    margin-top: 48px;
-    font-size: 13px;
-    font-weight: 400;
-    line-height: 1;
-  }
-
-  .footer-bar p {
-    margin: 0;
-  }
-
-  .footer-tagline {
-    font-feature-settings: "case";
-  }
-
-  .footer-credit {
-    justify-self: end;
-  }
-
-  .footer-credit-name {
-    text-decoration: underline;
-    text-underline-position: from-font;
   }
 
   /* Press and hover feedback, as on the homepage */
@@ -580,16 +513,6 @@ const navLinks = [
 
     .gate-copy {
       margin-top: 48px;
-    }
-
-    .footer-bar {
-      grid-template-columns: 1fr 1fr;
-      row-gap: 12px;
-    }
-
-    .footer-tagline {
-      grid-column: 1 / -1;
-      grid-row: 1;
     }
   }
 </style>
